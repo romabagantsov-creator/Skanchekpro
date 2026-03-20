@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="description" content="ЧекСкан Pro — умный финансовый помощник для учёта расходов">
+    <meta name="theme-color" content="#8b5cf6">
+    <title>ЧекСкан Pro — Умный финансовый помощник</title>
+    
+    <!-- Шрифты -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js для графиков -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Наши стили -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Шапка сайта -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                🧾 ЧекСкан <span class="logo-pro">Pro</span>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalReceipts">0</div>
+                    <div class="stat-label">Чеков</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalAmount">0 ₽</div>
+                    <div class="stat-label">Сумма</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="avgAmount">0 ₽</div>
+                    <div class="stat-label">Средний</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Основной контент -->
+    <main class="container">
+        <div class="grid">
+            <!-- Левая панель - управление чеками -->
+            <div class="left-panel">
+                <div class="card">
+                    <div class="card-header">📸 Добавить чек</div>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📄</div>
+                        <div class="upload-title">Добавить чек вручную</div>
+                        <div class="upload-sub">Нажмите, чтобы создать новый чек</div>
+                    </div>
+                    
+                    <div class="card-header" style="border-top: 1px solid var(--border);">📋 Мои чеки</div>
+                    <div class="receipts-list" id="receiptsList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <div class="empty-text">Нет чеков. Добавьте первый!</div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="addDemoBtn">
+                            🎯 Добавить демо-чеки
+                        </button>
+                        <button class="btn btn-secondary" id="exportHTMLBtn">
+                            📊 Красивый HTML отчёт
+                        </button>
+                        <button class="btn btn-secondary" id="exportCSVBtn">
+                            📥 CSV для Excel
+                        </button>
+                        <button class="btn btn-secondary" id="clearAllBtn">
+                            🗑️ Очистить все
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Правая панель - аналитика -->
+            <div class="right-panel">
+                <!-- Статистические карточки -->
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-card-label">💰 Всего расходов</div>
+                        <div class="stat-card-value" id="statTotal">0 ₽</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">📊 Средний чек</div>
+                        <div class="stat-card-value" id="statAvg">0 ₽</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">🏷️ Категорий</div>
+                        <div class="stat-card-value" id="statCategories">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-label">📈 Максимум</div>
+                        <div class="stat-card-value" id="statMax">0 ₽</div>
+                    </div>
+                </div>
+                
+                <!-- График категорий -->
+                <div class="card">
+                    <div class="card-header">📊 Расходы по категориям</div>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Детали выбранного чека -->
+                <div id="detailPanel"></div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Контейнер для уведомлений -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Модальное окно будет добавляться сюда -->
+    <div id="modalRoot"></div>
+    
+    <!-- Наши скрипты -->
+    <script src="js/data.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/actions.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

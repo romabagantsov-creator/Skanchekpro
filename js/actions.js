@@ -3,16 +3,101 @@
 /**
  * Добавление нового чека - создаёт пустой чек и сразу открывает редактирование
  */
-function addNewReceipt() {
-    const newReceipt = createEmptyReceipt();
-    window.appState.receipts.unshift(newReceipt);
-    window.appState.selectedId = newReceipt.id;
+/**
+ * Обработка загруженного фото чека
+ */
+async function handleImageUpload(file) {
+    if (!file || !file.type.startsWith('image/')) {
+        showToast('Пожалуйста, выберите изображение', 'error');
+        return;
+    }
     
-    saveToLocalStorage(window.appState.receipts);
-    renderAll(window.appState.receipts, window.appState.selectedId);
-    showToast('Новый чек создан', 'success');
+    // Показываем превью загружаемого чека
+    const loadingToast = showLoadingToast('🔄 Обработка изображения...');
     
-    editReceipt(newReceipt.id);
+    try {
+        // Распознаём чек
+        const receiptData = await createReceiptFromImage(file);
+        
+        if (!receiptData) {
+            closeToast(loadingToast);
+            showToast('❌ Не удалось распознать чек. Попробуйте сфотографировать чётче или добавьте вручную.', 'error');
+            // Предлагаем ручное добавление
+            if (confirm('Не удалось распознать чек. Хотите добавить его вручную?')) {
+                addNewReceipt();
+            }
+            return;
+        }
+        
+        // Добавляем чек в список
+        window.appState.receipts.unshift(receiptData);
+        window.appState.selectedId = receiptData.id;
+        
+        // Сохраняем и обновляем интерфейс
+        saveToLocalStorage(window.appState.receipts);
+        renderAll(window.appState.receipts, window.appState.selectedId);
+        
+        closeToast(loadingToast);
+        
+        // Показываем сообщение об успехе
+        const confidenceMsg = receiptData.ocrData?.fromQR ? ' (из QR-кода)' : ` (уверенность: ${Math.round(receiptData.ocrData?.confidence || 0)}%)`;
+        showToast(`✅ Чек распознан!${confidenceMsg}`, 'success');
+        
+        // Открываем редактирование для корректировки
+        setTimeout(() => {
+            if (confirm('Хотите проверить и отредактировать распознанные данные?')) {
+                editReceipt(receiptData.id);
+            }
+        }, 500);
+        
+    } catch (error) {
+        console.error('Ошибка:', error);
+        closeToast(loadingToast);
+        showToast('❌ Ошибка при обработке чека', 'error');
+    }
+}
+
+/**
+ * Инициализация загрузки фото
+ */
+function initImageUpload() {
+    const fileInput = document.getElementById('fileInput');
+    const uploadZone = document.getElementById('uploadZone');
+    
+    // Клик по зоне загрузки
+    uploadZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // Выбор файла
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+        fileInput.value = '';
+    });
+    
+    // Drag & drop
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+    });
+    
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('drag-over');
+    });
+    
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files && files[0] && files[0].type.startsWith('image/')) {
+            handleImageUpload(files[0]);
+        } else {
+            showToast('Пожалуйста, перетащите изображение', 'error');
+        }
+    });
 }
 
 /**

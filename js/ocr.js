@@ -33,14 +33,26 @@ async function preprocessImage(imageFile) {
             const ctx = canvas.getContext('2d');
             
             // Увеличиваем размер для лучшего распознавания
-            const scale = 2;
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
+            const maxSize = 1500;
+            let width = img.width;
+            let height = img.height;
             
-            // Рисуем увеличенное изображение
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+            }
+            if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+            }
             
-            // Повышаем контрастность
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Рисуем изображение
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Повышаем контрастность и преобразуем в ч/б для лучшего распознавания
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             
@@ -49,12 +61,12 @@ async function preprocessImage(imageFile) {
                 const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
                 
                 // Повышаем контраст
-                const contrast = 1.5;
+                const contrast = 1.3;
                 const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-                const newBrightness = factor * (brightness - 128) + 128;
+                let newBrightness = factor * (brightness - 128) + 128;
+                newBrightness = Math.min(255, Math.max(0, newBrightness));
                 
-                const clamped = Math.min(255, Math.max(0, newBrightness));
-                data[i] = data[i+1] = data[i+2] = clamped;
+                data[i] = data[i+1] = data[i+2] = newBrightness;
             }
             
             ctx.putImageData(imageData, 0, 0);
@@ -64,40 +76,6 @@ async function preprocessImage(imageFile) {
             }, 'image/jpeg', 0.9);
         };
         img.onerror = reject;
-        img.src = URL.createObjectURL(imageFile);
-    });
-}
-
-/**
- * Проверка на наличие QR-кода
- */
-async function scanQRCode(imageFile) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height);
-            
-            if (code && code.data) {
-                try {
-                    // Пробуем распарсить JSON
-                    const data = JSON.parse(code.data);
-                    resolve({ success: true, type: 'json', data });
-                } catch (e) {
-                    // Если не JSON, возвращаем как текст
-                    resolve({ success: true, type: 'text', data: code.data });
-                }
-            } else {
-                resolve(null);
-            }
-        };
-        img.onerror = () => resolve(null);
         img.src = URL.createObjectURL(imageFile);
     });
 }
@@ -117,7 +95,7 @@ function parseReceiptText(text) {
     // Паттерны для поиска магазина
     const storePatterns = [
         /^([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+)?)\s*(?:ООО|ИП|ЗАО)/m,
-        /(ПЯТЁРОЧКА|МАГНИТ|ПЕРЕКРЁСТОК|АШАН|ЛЕНТА|DNS|М\.ВИДЕО|KFC|МАКДОНАЛДС)/i
+        /(ПЯТЁРОЧКА|МАГНИТ|ПЕРЕКРЁСТОК|АШАН|ЛЕНТА|DNS|М\.ВИДЕО|KFC|МАКДОНАЛДС|OZON|WILDBERRIES)/i
     ];
     
     for (const pattern of storePatterns) {
@@ -129,10 +107,20 @@ function parseReceiptText(text) {
         }
     }
     
+    // Если магазин не найден, пробуем взять первую строку
+    if (!result.store) {
+        const firstLine = text.split('\n')[0]?.trim();
+        if (firstLine && firstLine.length > 2 && firstLine.length < 50) {
+            result.store = firstLine;
+            result.confidence += 5;
+        }
+    }
+    
     // Паттерны для поиска даты
     const datePatterns = [
         /(\d{2})[.\/](\d{2})[.\/](\d{4})/,
-        /(\d{4})-(\d{2})-(\d{2})/
+        /(\d{4})-(\d{2})-(\d{2})/,
+        /(\d{2})[.\/](\d{2})[.\/](\d{2})/
     ];
     
     for (const pattern of datePatterns) {
@@ -140,6 +128,9 @@ function parseReceiptText(text) {
         if (match) {
             if (match[1].length === 4) {
                 result.date = `${match[3]}.${match[2]}.${match[1]}`;
+            } else if (match[3] && match[3].length === 2) {
+                const year = 2000 + parseInt(match[3]);
+                result.date = `${match[1]}.${match[2]}.${year}`;
             } else {
                 result.date = `${match[1]}.${match[2]}.${match[3]}`;
             }
@@ -151,8 +142,9 @@ function parseReceiptText(text) {
     // Паттерны для поиска итоговой суммы
     const totalPatterns = [
         /(?:ИТОГО|ВСЕГО|TOTAL)[:\s]*(\d+[\s,.]*\d*)/i,
-        /(?:К ОПЛАТЕ|СУММА)[:\s]*(\d+[\s,.]*\d*)/i,
-        /(\d+[\s,.]*\d*)\s*[Р₽](?:\s*[\n\r]|$)/i
+        /(?:К ОПЛАТЕ|СУММА|SUM)[:\s]*(\d+[\s,.]*\d*)/i,
+        /(\d+[\s,.]*\d*)\s*[Р₽](?:\s*[\n\r]|$)/i,
+        /[=\-]\s*(\d+[\s,.]*\d*)\s*[Р₽]/i
     ];
     
     for (const pattern of totalPatterns) {
@@ -167,28 +159,53 @@ function parseReceiptText(text) {
         }
     }
     
-    // Паттерны для поиска товаров
-    const itemPattern = /([А-ЯЁа-яё0-9\s\-\.]+?)\s+(\d+[\s,.]*\d*)\s*[Р₽]/gi;
-    const items = [];
-    let match;
+    // Паттерны для поиска товаров (название + цена)
+    const itemPatterns = [
+        /([А-ЯЁа-яё0-9\s\-\.]{2,50})\s+(\d+[\s,.]*\d*)\s*[Р₽]/gi,
+        /([А-ЯЁа-яё0-9\s\-\.]{2,50})\s+(\d+[\s,.]*\d*)\s*$/gim
+    ];
     
-    while ((match = itemPattern.exec(text)) !== null) {
-        const name = match[1].trim();
-        const price = parseFloat(match[2].replace(/\s/g, '').replace(',', '.'));
-        
-        // Фильтруем служебные строки
-        if (name.length > 2 && name.length < 50 && price > 0 && price < 50000) {
-            items.push({
-                name: name,
-                quantity: 1,
-                price: price,
-                total: price
-            });
-            result.confidence += 5;
+    const items = [];
+    
+    for (const pattern of itemPatterns) {
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const name = match[1].trim();
+            const price = parseFloat(match[2].replace(/\s/g, '').replace(',', '.'));
+            
+            // Фильтруем служебные строки
+            const excludeWords = ['КАССА', 'СМЕНА', 'СПАСИБО', 'БОНУС', 'ИТОГО', 'ВСЕГО', 'КАССИР', 'ЧЕК', 'СЧЁТ'];
+            let isExcluded = false;
+            for (const word of excludeWords) {
+                if (name.toUpperCase().includes(word)) {
+                    isExcluded = true;
+                    break;
+                }
+            }
+            
+            if (name.length > 2 && name.length < 60 && price > 0 && price < 50000 && !isExcluded) {
+                items.push({
+                    name: name.substring(0, 50),
+                    quantity: 1,
+                    price: price,
+                    total: price
+                });
+                result.confidence += 5;
+            }
         }
     }
     
-    result.items = items.slice(0, 20);
+    // Удаляем дубликаты товаров
+    const uniqueItems = [];
+    const seenNames = new Set();
+    for (const item of items) {
+        if (!seenNames.has(item.name)) {
+            seenNames.add(item.name);
+            uniqueItems.push(item);
+        }
+    }
+    
+    result.items = uniqueItems.slice(0, 20);
     
     // Нормализуем уверенность
     result.confidence = Math.min(result.confidence, 100);
@@ -205,30 +222,28 @@ async function recognizeReceipt(imageFile) {
     
     try {
         // 1. Инициализируем OCR
-        await initOCR();
-        
-        // 2. Проверяем QR-код
-        const qrResult = await scanQRCode(imageFile);
-        if (qrResult && qrResult.success) {
+        const initialized = await initOCR();
+        if (!initialized) {
             closeToast(loadingToast);
-            showToast('✅ QR-код распознан!', 'success');
-            return processQRData(qrResult);
+            return null;
         }
         
-        // 3. Предобрабатываем изображение
+        // 2. Предобрабатываем изображение
         const processedImage = await preprocessImage(imageFile);
         
-        // 4. Распознаём текст
+        // 3. Распознаём текст
         const { data: { text, confidence } } = await tesseractWorker.recognize(processedImage);
         
-        // 5. Парсим текст
+        console.log('Распознанный текст:', text); // Для отладки
+        
+        // 4. Парсим текст
         const parsed = parseReceiptText(text);
         parsed.rawText = text;
         parsed.ocrConfidence = confidence;
         
         closeToast(loadingToast);
         
-        if (parsed.confidence > 40) {
+        if (parsed.confidence > 30) {
             showToast(`✅ Чек распознан! Уверенность: ${Math.round(parsed.confidence)}%`, 'success');
         } else {
             showToast('⚠️ Чек распознан частично. Пожалуйста, проверьте данные.', 'warning');
@@ -242,50 +257,6 @@ async function recognizeReceipt(imageFile) {
         showToast('❌ Не удалось распознать чек. Попробуйте сфотографировать чётче.', 'error');
         return null;
     }
-}
-
-/**
- * Обработка данных из QR-кода
- */
-function processQRData(qrResult) {
-    let data = {};
-    
-    if (qrResult.type === 'json') {
-        data = qrResult.data;
-    } else {
-        // Пробуем распарсить текст
-        const lines = qrResult.data.split('\n');
-        lines.forEach(line => {
-            const parts = line.split(':');
-            if (parts.length === 2) {
-                data[parts[0].toLowerCase().trim()] = parts[1].trim();
-            }
-        });
-    }
-    
-    // Извлекаем товары, если есть
-    const items = [];
-    if (data.items) {
-        if (Array.isArray(data.items)) {
-            data.items.forEach(item => {
-                items.push({
-                    name: item.name || item.title || 'Товар',
-                    quantity: item.quantity || 1,
-                    price: item.price || item.amount || 0,
-                    total: (item.price || item.amount || 0) * (item.quantity || 1)
-                });
-            });
-        }
-    }
-    
-    return {
-        store: data.store || data.shop || data.merchant || 'Магазин',
-        date: data.date || new Date().toLocaleDateString('ru-RU'),
-        total: data.total || data.sum || data.amount || 0,
-        items: items.length ? items : [{ name: 'Покупка', quantity: 1, price: data.total || 0, total: data.total || 0 }],
-        confidence: 100,
-        fromQR: true
-    };
 }
 
 /**
@@ -312,8 +283,7 @@ async function createReceiptFromImage(imageFile) {
         notes: getAdviceByCategory(category),
         ocrData: {
             confidence: recognized.confidence,
-            rawText: recognized.rawText,
-            fromQR: recognized.fromQR || false
+            rawText: recognized.rawText?.substring(0, 500)
         }
     };
     
@@ -324,17 +294,17 @@ async function createReceiptFromImage(imageFile) {
  * Определение категории на основе данных
  */
 function determineCategoryFromData(store, items) {
-    const searchText = (store + ' ' + items.map(i => i.name).join(' ')).toLowerCase();
+    const searchText = ((store || '') + ' ' + (items || []).map(i => i.name).join(' ')).toLowerCase();
     
     const categoryKeywords = {
-        'Продукты': ['пятёрочка', 'магнит', 'перекрёсток', 'ашан', 'лента', 'молоко', 'хлеб', 'сыр', 'мясо'],
-        'Рестораны': ['kfc', 'макдоналдс', 'бургер', 'пицца', 'суши', 'кафе'],
-        'Транспорт': ['такси', 'яндекс', 'метро', 'бензин', 'заправка'],
-        'Аптека': ['аптека', 'лекарство', 'витамины'],
-        'Электроника': ['м.видео', 'dns', 'эльдорадо', 'телефон', 'наушники'],
-        'Одежда': ['одежда', 'обувь', 'кроссовки', 'футболка'],
-        'Развлечения': ['кино', 'театр', 'билет', 'концерт'],
-        'Дом': ['ремонт', 'мебель', 'икеа', 'посуда']
+        'Продукты': ['пятёрочка', 'магнит', 'перекрёсток', 'ашан', 'лента', 'молоко', 'хлеб', 'сыр', 'мясо', 'овощи', 'фрукты'],
+        'Рестораны': ['kfc', 'макдоналдс', 'бургер', 'пицца', 'суши', 'кафе', 'ресторан', 'кофе', 'чай'],
+        'Транспорт': ['такси', 'яндекс', 'метро', 'бензин', 'заправка', 'транспорт', 'автобус'],
+        'Аптека': ['аптека', 'лекарство', 'витамины', 'таблетки', 'здоровье'],
+        'Электроника': ['м.видео', 'dns', 'эльдорадо', 'телефон', 'наушники', 'ноутбук', 'зарядка'],
+        'Одежда': ['одежда', 'обувь', 'кроссовки', 'футболка', 'джинсы', 'h&m', 'zara'],
+        'Развлечения': ['кино', 'театр', 'билет', 'концерт', 'игры', 'steam'],
+        'Дом': ['ремонт', 'мебель', 'икеа', 'посуда', 'хозтовары']
     };
     
     for (const [category, keywords] of Object.entries(categoryKeywords)) {
@@ -353,10 +323,12 @@ function determineCategoryFromData(store, items) {
  */
 function showLoadingToast(message) {
     const container = document.getElementById('toastContainer');
+    if (!container) return null;
+    
     const toast = document.createElement('div');
     toast.className = 'toast info';
     toast.innerHTML = `
-        <span class="spinner" style="width: 16px; height: 16px; border: 2px solid var(--text-secondary); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; display: inline-block;"></span>
+        <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--text-secondary); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></span>
         ${message}
     `;
     container.appendChild(toast);

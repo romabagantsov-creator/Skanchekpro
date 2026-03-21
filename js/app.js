@@ -22,8 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Отрисовываем интерфейс
     renderAll(window.appState.receipts, window.appState.selectedId);
     
+    // Инициализируем загрузку фото
+    initImageUpload();
+    
     // Навешиваем обработчики
-    document.getElementById('uploadZone')?.addEventListener('click', addNewReceipt);
+    document.getElementById('manualAddBtn')?.addEventListener('click', addNewReceipt);
     document.getElementById('addDemoBtn')?.addEventListener('click', addDemoReceipts);
     document.getElementById('exportHTMLBtn')?.addEventListener('click', exportToHTML);
     document.getElementById('exportCSVBtn')?.addEventListener('click', exportToCSV);

@@ -1,12 +1,12 @@
-// ==================== ПРОСТАЯ ВЕРСИЯ OCR ====================
+// ==================== РАБОЧАЯ ВЕРСИЯ С GOOGLE VISION ====================
 
-let tesseractWorker = null;
+const GOOGLE_VISION_API_KEY = 'AIzaSyAEbk96ky82YRCxx4Y7cnjJ16z5PF4j9Ck';
 
 /**
- * Распознавание чека через Google Cloud Vision API
+ * Распознавание чека через Google Cloud Vision
  */
-async function recognizeWithGoogleVision(imageFile) {
-    const GOOGLE_VISION_API_KEY = 'AIzaSyAEbk96ky82YRCxx4Y7cnjJ16z5PF4j9Ck';
+async function recognizeReceipt(imageFile) {
+    showToast('🔍 Анализируем чек через Google Vision...', 'info');
     
     try {
         // Конвертируем в base64
@@ -31,29 +31,38 @@ async function recognizeWithGoogleVision(imageFile) {
         const data = await response.json();
         
         if (data.error) {
-            console.error('Ошибка Google Vision:', data.error);
+            console.error('Ошибка:', data.error);
+            showToast(`❌ ${data.error.message || 'Ошибка API'}`, 'error');
             return null;
         }
         
         const fullText = data.responses[0]?.fullTextAnnotation?.text || '';
-        console.log('Распознанный текст:', fullText);
+        console.log('Распознанный текст:', fullText.substring(0, 500));
         
         // Парсим текст
-        const result = parseSimpleReceipt(fullText);
-        return result;
+        const result = parseReceiptText(fullText);
+        
+        if (result.items.length > 0 || result.total > 0) {
+            showToast(`✅ Распознано ${result.items.length} товаров на сумму ${result.total} ₽`, 'success');
+            return result;
+        } else {
+            showToast('⚠️ Не удалось найти товары в чеке', 'warning');
+            return result;
+        }
         
     } catch (error) {
         console.error('Ошибка:', error);
+        showToast('❌ Ошибка соединения с Google Vision', 'error');
         return null;
     }
 }
 
 /**
- * Простой парсер чека
+ * Парсер текста чека (специально для вашего формата)
  */
-function parseSimpleReceipt(text) {
+function parseReceiptText(text) {
     const result = {
-        store: 'Магазин',
+        store: 'ГРАНДТОРГ',
         date: new Date().toLocaleDateString('ru-RU'),
         total: 0,
         items: [],
@@ -76,43 +85,72 @@ function parseSimpleReceipt(text) {
     const totalMatch = text.match(/ИТОГО\s*К?\s*ОПЛАТЕ\s*[=:]?\s*(\d+[\s,.]*\d*)/i);
     if (totalMatch) {
         result.total = parseFloat(totalMatch[1].replace(/\s/g, '').replace(',', '.'));
-    } else {
-        const altTotal = text.match(/ИТОГО\s*[=:]?\s*(\d+[\s,.]*\d*)/i);
-        if (altTotal) {
-            result.total = parseFloat(altTotal[1].replace(/\s/g, '').replace(',', '.'));
-        }
     }
     
-    // 4. Ищем товары (простым способом)
+    // 4. Парсим товары (формат: КОД ЕД. НАЗВАНИЕ ЦЕНА *КОЛ=СУММА)
     const lines = text.split('\n');
     const items = [];
     
-    for (const line of lines) {
-        // Ищем строки с ценой
-        const priceMatch = line.match(/(\d+[\s,.]*\d*)\s*\*[\d.]+=(\d+[\s,.]*\d*)/i);
-        if (priceMatch) {
-            // Ищем название перед ценой
-            let name = line.replace(priceMatch[0], '').trim();
-            // Очищаем название от кода и единиц измерения
+    // Регулярное выражение для поиска товаров
+    const itemRegex = /(\d+)\s+([А-ЯЁ]{2,4}\.?)\s+([А-ЯЁа-яё0-9\s\/\-\.\(\)]+?)\s+(\d+[\s,.]*\d*)\s+\*([\d.]+)=(\d+[\s,.]*\d*)/gi;
+    
+    let match;
+    while ((match = itemRegex.exec(text)) !== null) {
+        let name = match[3].trim();
+        const price = parseFloat(match[4].replace(/\s/g, '').replace(',', '.'));
+        const quantity = parseFloat(match[5].replace(',', '.'));
+        const total = parseFloat(match[6].replace(/\s/g, '').replace(',', '.'));
+        
+        // Очищаем название
+        name = name.replace(/\s+/g, ' ').trim();
+        
+        // Фильтруем служебные строки
+        const exclude = ['ИТОГО', 'ВСЕГО', 'СУММА', 'КАССА', 'СМЕНА'];
+        let isExcluded = false;
+        for (const word of exclude) {
+            if (name.toUpperCase().includes(word)) {
+                isExcluded = true;
+                break;
+            }
+        }
+        
+        if (!isExcluded && name.length > 2 && name.length < 80 && price > 0) {
+            items.push({
+                name: name,
+                quantity: quantity,
+                price: price,
+                total: total
+            });
+        }
+    }
+    
+    result.items = items;
+    
+    // Если товары не найдены, пробуем упрощённый паттерн
+    if (result.items.length === 0) {
+        const simpleRegex = /([А-ЯЁа-яё0-9\s\/\-\.]+?)\s+(\d+[\s,.]*\d*)\s+\*([\d.]+)=(\d+[\s,.]*\d*)/gi;
+        
+        while ((match = simpleRegex.exec(text)) !== null) {
+            let name = match[1].trim();
+            const price = parseFloat(match[2].replace(/\s/g, '').replace(',', '.'));
+            const quantity = parseFloat(match[3].replace(',', '.'));
+            const total = parseFloat(match[4].replace(/\s/g, '').replace(',', '.'));
+            
             name = name.replace(/^\d+\s+/, '');
             name = name.replace(/^[А-ЯЁ]{2,4}\.?/, '');
-            name = name.replace(/\s+/g, ' ').trim();
-            
-            const price = parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.'));
-            const total = parseFloat(priceMatch[2].replace(/\s/g, '').replace(',', '.'));
+            name = name.trim();
             
             if (name.length > 2 && name.length < 60 && price > 0) {
                 items.push({
                     name: name,
-                    quantity: 1,
+                    quantity: quantity,
                     price: price,
                     total: total
                 });
             }
         }
+        result.items = items;
     }
-    
-    result.items = items;
     
     // Если товаров нет, но сумма есть
     if (result.items.length === 0 && result.total > 0) {
@@ -124,7 +162,7 @@ function parseSimpleReceipt(text) {
         }];
     }
     
-    // Добавляем совет
+    // Генерируем совет
     if (result.total > 3000) {
         result.notes = `💰 Крупная покупка на ${result.total} ₽. `;
     }
@@ -135,37 +173,8 @@ function parseSimpleReceipt(text) {
         result.notes = '📝 Отслеживайте расходы и планируйте бюджет.';
     }
     
-    console.log('Распознано товаров:', result.items.length);
-    console.log('Сумма:', result.total);
-    
+    console.log(`Найдено товаров: ${result.items.length}`);
     return result;
-}
-
-/**
- * Основная функция распознавания
- */
-async function recognizeReceipt(imageFile) {
-    showToast('🔍 Анализируем чек через Google Vision...', 'info');
-    
-    try {
-        const result = await recognizeWithGoogleVision(imageFile);
-        
-        if (result && result.items.length > 0) {
-            showToast(`✅ Распознано ${result.items.length} товаров на сумму ${result.total} ₽`, 'success');
-            return result;
-        } else if (result && result.total > 0) {
-            showToast(`⚠️ Распознана только сумма: ${result.total} ₽`, 'warning');
-            return result;
-        } else {
-            showToast('❌ Не удалось распознать чек', 'error');
-            return null;
-        }
-        
-    } catch (error) {
-        console.error('Ошибка:', error);
-        showToast('❌ Ошибка распознавания', 'error');
-        return null;
-    }
 }
 
 /**
@@ -174,63 +183,28 @@ async function recognizeReceipt(imageFile) {
 async function createReceiptFromImage(imageFile) {
     const recognized = await recognizeReceipt(imageFile);
     
-    if (!recognized || (recognized.total === 0 && recognized.items.length === 0)) {
+    if (!recognized) {
         if (confirm('Не удалось распознать чек. Хотите добавить вручную?')) {
             addNewReceipt();
         }
         return null;
     }
     
-    const category = determineCategory(recognized.items);
-    
     const newReceipt = {
         id: generateId(),
-        store: recognized.store || 'Магазин',
+        store: recognized.store,
         date: recognized.date,
-        category: category,
+        category: 'Продукты',
         total: recognized.total,
         items: recognized.items,
-        notes: recognized.notes || getAdviceByCategory(category)
+        notes: recognized.notes
     };
     
     return newReceipt;
 }
 
 /**
- * Определение категории
- */
-function determineCategory(items) {
-    const names = items.map(i => i.name.toLowerCase()).join(' ');
-    
-    if (names.includes('молоко') || names.includes('хлеб') || names.includes('сыр') || names.includes('мясо')) {
-        return 'Продукты';
-    }
-    if (names.includes('бургер') || names.includes('пицца')) {
-        return 'Рестораны';
-    }
-    if (names.includes('такси') || names.includes('бензин')) {
-        return 'Транспорт';
-    }
-    
-    return 'Прочее';
-}
-
-/**
- * Инициализация (заглушка)
- */
-async function initTesseract() {
-    return true;
-}
-
-/**
- * Предобработка (заглушка)
- */
-async function preprocessImage(imageFile) {
-    return imageFile;
-}
-
-/**
- * Показ уведомления
+ * Уведомления
  */
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
@@ -240,13 +214,11 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.innerHTML = message;
     container.appendChild(toast);
-    
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), 4000);
 }
 
-function showLoadingToast(message) {
-    showToast(message, 'info');
-    return null;
-}
-
-function closeToast(toast) {}
+// Заглушки
+async function initTesseract() { return true; }
+async function preprocessImage(f) { return f; }
+function showLoadingToast(m) { showToast(m, 'info'); return null; }
+function closeToast(t) {}

@@ -13,6 +13,12 @@
     <!-- Chart.js для графиков -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
+    <!-- Tesseract.js для OCR -->
+    <script src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+    
+    <!-- jsQR для распознавания QR-кодов -->
+    <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
     <!-- Наши стили -->
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -47,11 +53,25 @@
             <div class="left-panel">
                 <div class="card">
                     <div class="card-header">📸 Добавить чек</div>
+                    
+                    <!-- Зона загрузки фото -->
                     <div class="upload-zone" id="uploadZone">
-                        <div class="upload-icon">📄</div>
-                        <div class="upload-title">Добавить чек вручную</div>
-                        <div class="upload-sub">Нажмите, чтобы создать новый чек</div>
+                        <div class="upload-icon">📷</div>
+                        <div class="upload-title">Сфотографируйте чек или загрузите фото</div>
+                        <div class="upload-sub">Нажмите для выбора файла</div>
+                        <div class="badge-container">
+                            <span class="badge">JPG</span>
+                            <span class="badge">PNG</span>
+                            <span class="badge">WEBP</span>
+                            <span class="badge">HEIC</span>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
                     </div>
+                    
+                    <!-- Кнопка ручного добавления -->
+                    <button class="btn btn-secondary" id="manualAddBtn" style="margin: 0 1.5rem 0.5rem 1.5rem; width: calc(100% - 3rem);">
+                        ✍️ Добавить чек вручную
+                    </button>
                     
                     <div class="card-header" style="border-top: 1px solid var(--border);">📋 Мои чеки</div>
                     <div class="receipts-list" id="receiptsList">
@@ -123,6 +143,7 @@
     <!-- Наши скрипты -->
     <script src="js/data.js"></script>
     <script src="js/utils.js"></script>
+    <script src="js/ocr.js"></script>
     <script src="js/render.js"></script>
     <script src="js/actions.js"></script>
     <script src="js/app.js"></script>

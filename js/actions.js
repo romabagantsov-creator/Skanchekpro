@@ -1,103 +1,18 @@
 // ==================== ДЕЙСТВИЯ ПОЛЬЗОВАТЕЛЯ ====================
 
 /**
- * Добавление нового чека - создаёт пустой чек и сразу открывает редактирование
+ * Добавление нового чека вручную - создаёт пустой чек и сразу открывает редактирование
  */
-/**
- * Обработка загруженного фото чека
- */
-async function handleImageUpload(file) {
-    if (!file || !file.type.startsWith('image/')) {
-        showToast('Пожалуйста, выберите изображение', 'error');
-        return;
-    }
+function addNewReceipt() {
+    const newReceipt = createEmptyReceipt();
+    window.appState.receipts.unshift(newReceipt);
+    window.appState.selectedId = newReceipt.id;
     
-    // Показываем превью загружаемого чека
-    const loadingToast = showLoadingToast('🔄 Обработка изображения...');
+    saveToLocalStorage(window.appState.receipts);
+    renderAll(window.appState.receipts, window.appState.selectedId);
+    showToast('Новый чек создан', 'success');
     
-    try {
-        // Распознаём чек
-        const receiptData = await createReceiptFromImage(file);
-        
-        if (!receiptData) {
-            closeToast(loadingToast);
-            showToast('❌ Не удалось распознать чек. Попробуйте сфотографировать чётче или добавьте вручную.', 'error');
-            // Предлагаем ручное добавление
-            if (confirm('Не удалось распознать чек. Хотите добавить его вручную?')) {
-                addNewReceipt();
-            }
-            return;
-        }
-        
-        // Добавляем чек в список
-        window.appState.receipts.unshift(receiptData);
-        window.appState.selectedId = receiptData.id;
-        
-        // Сохраняем и обновляем интерфейс
-        saveToLocalStorage(window.appState.receipts);
-        renderAll(window.appState.receipts, window.appState.selectedId);
-        
-        closeToast(loadingToast);
-        
-        // Показываем сообщение об успехе
-        const confidenceMsg = receiptData.ocrData?.fromQR ? ' (из QR-кода)' : ` (уверенность: ${Math.round(receiptData.ocrData?.confidence || 0)}%)`;
-        showToast(`✅ Чек распознан!${confidenceMsg}`, 'success');
-        
-        // Открываем редактирование для корректировки
-        setTimeout(() => {
-            if (confirm('Хотите проверить и отредактировать распознанные данные?')) {
-                editReceipt(receiptData.id);
-            }
-        }, 500);
-        
-    } catch (error) {
-        console.error('Ошибка:', error);
-        closeToast(loadingToast);
-        showToast('❌ Ошибка при обработке чека', 'error');
-    }
-}
-
-/**
- * Инициализация загрузки фото
- */
-function initImageUpload() {
-    const fileInput = document.getElementById('fileInput');
-    const uploadZone = document.getElementById('uploadZone');
-    
-    // Клик по зоне загрузки
-    uploadZone.addEventListener('click', () => {
-        fileInput.click();
-    });
-    
-    // Выбор файла
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-            handleImageUpload(e.target.files[0]);
-        }
-        fileInput.value = '';
-    });
-    
-    // Drag & drop
-    uploadZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadZone.classList.add('drag-over');
-    });
-    
-    uploadZone.addEventListener('dragleave', () => {
-        uploadZone.classList.remove('drag-over');
-    });
-    
-    uploadZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadZone.classList.remove('drag-over');
-        
-        const files = e.dataTransfer.files;
-        if (files && files[0] && files[0].type.startsWith('image/')) {
-            handleImageUpload(files[0]);
-        } else {
-            showToast('Пожалуйста, перетащите изображение', 'error');
-        }
-    });
+    editReceipt(newReceipt.id);
 }
 
 /**
@@ -441,26 +356,22 @@ function exportToCSV() {
         return;
     }
     
-    // Сортируем чеки по дате (новые сверху)
     const sortedReceipts = [...window.appState.receipts].sort((a, b) => {
         const dateA = a.date.split('.').reverse().join('-');
         const dateB = b.date.split('.').reverse().join('-');
         return dateB.localeCompare(dateA);
     });
     
-    // Подсчитываем итоговую статистику
     const totalSum = sortedReceipts.reduce((sum, r) => sum + (r.total || 0), 0);
     const avgSum = totalSum / sortedReceipts.length;
     const maxReceipt = sortedReceipts.reduce((max, r) => (!max || r.total > max.total) ? r : max, null);
     const minReceipt = sortedReceipts.reduce((min, r) => (!min || r.total < min.total) ? r : min, null);
     
-    // Подсчитываем расходы по категориям
     const categoryTotals = {};
     sortedReceipts.forEach(r => {
         categoryTotals[r.category] = (categoryTotals[r.category] || 0) + r.total;
     });
     
-    // Подсчитываем расходы по месяцам
     const monthlyTotals = {};
     sortedReceipts.forEach(r => {
         const month = r.date.split('.').slice(1, 3).join('.');
@@ -469,15 +380,12 @@ function exportToCSV() {
     
     const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
     
-    // Формируем CSV с несколькими секциями
     const csvSections = [];
     
-    // 1. ЗАГОЛОВОК ОТЧЁТА
     csvSections.push(['"ЧекСкан Pro - Финансовый отчёт"']);
     csvSections.push([`"Дата формирования: ${new Date().toLocaleString('ru-RU')}"`]);
     csvSections.push([]);
     
-    // 2. ОСНОВНАЯ СТАТИСТИКА
     csvSections.push(['"=== ОСНОВНАЯ СТАТИСТИКА ==="']);
     csvSections.push(['Показатель', 'Значение']);
     csvSections.push(['Всего чеков', sortedReceipts.length]);
@@ -490,7 +398,6 @@ function exportToCSV() {
     csvSections.push(['Количество категорий', new Set(sortedReceipts.map(r => r.category)).size]);
     csvSections.push([]);
     
-    // 3. РАСХОДЫ ПО КАТЕГОРИЯМ
     csvSections.push(['"=== РАСХОДЫ ПО КАТЕГОРИЯМ ==="']);
     csvSections.push(['Категория', 'Сумма', 'Процент от общих расходов']);
     
@@ -502,7 +409,6 @@ function exportToCSV() {
         });
     csvSections.push([]);
     
-    // 4. ДИНАМИКА ПО МЕСЯЦАМ
     csvSections.push(['"=== ДИНАМИКА ПО МЕСЯЦАМ ==="']);
     csvSections.push(['Месяц', 'Сумма расходов', 'Количество чеков', 'Средний чек']);
     
@@ -520,7 +426,6 @@ function exportToCSV() {
         });
     csvSections.push([]);
     
-    // 5. ДЕТАЛЬНАЯ ТАБЛИЦА ЧЕКОВ
     csvSections.push(['"=== ДЕТАЛЬНЫЙ ПЕРЕЧЕНЬ ЧЕКОВ ==="']);
     csvSections.push(['№', 'Дата', 'Магазин', 'Категория', 'Сумма', 'Кол-во товаров', 'Товары', 'Заметки']);
     
@@ -539,7 +444,6 @@ function exportToCSV() {
     });
     csvSections.push([]);
     
-    // 6. ДЕТАЛЬНАЯ ТАБЛИЦА ТОВАРОВ (все товары по всем чекам)
     csvSections.push(['"=== ДЕТАЛЬНЫЙ ПЕРЕЧЕНЬ ТОВАРОВ ==="']);
     csvSections.push(['Чек №', 'Дата', 'Магазин', 'Категория', 'Товар', 'Количество', 'Цена', 'Сумма']);
     
@@ -559,17 +463,14 @@ function exportToCSV() {
     });
     csvSections.push([]);
     
-    // 7. ИТОГОВАЯ СТРОКА
     csvSections.push(['"=== ИТОГИ ==="']);
     csvSections.push([`"Общая сумма всех расходов: ${formatMoneyForCSV(totalSum)}"`]);
     csvSections.push([`"Всего чеков: ${sortedReceipts.length}"`]);
     csvSections.push([`"Всего товаров: ${sortedReceipts.reduce((sum, r) => sum + r.items.length, 0)}"`]);
     csvSections.push([`"Средний чек: ${formatMoneyForCSV(avgSum)}"`]);
     
-    // Формируем CSV строку
     const csvContent = csvSections.map(row => 
         row.map(cell => {
-            // Экранируем кавычки и оборачиваем в кавычки если нужно
             const stringCell = String(cell);
             if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n') || stringCell.includes(';')) {
                 return `"${stringCell.replace(/"/g, '""')}"`;
@@ -578,7 +479,6 @@ function exportToCSV() {
         }).join(';')
     ).join('\n');
     
-    // Добавляем BOM для поддержки UTF-8 в Excel
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -870,96 +770,4 @@ function generateBeautifulHTML(sortedReceipts, totalSum, avgSum, maxReceipt, min
         <div class="report-header">
             <h1>🧾 ЧекСкан Pro</h1>
             <div class="subtitle">Детальный анализ расходов</div>
-            <div class="date">Дата отчёта: ${new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-        </div>
-        
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-label">Всего чеков</div><div class="stat-value">${sortedReceipts.length}</div><div class="stat-sub">покупок</div></div>
-            <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Общая сумма</div><div class="stat-value">${formatMoney(totalSum)}</div><div class="stat-sub">за всё время</div></div>
-            <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-label">Средний чек</div><div class="stat-value">${formatMoney(avgSum)}</div><div class="stat-sub">за покупку</div></div>
-            <div class="stat-card"><div class="stat-icon">🏷️</div><div class="stat-label">Категорий</div><div class="stat-value">${categoriesCount}</div><div class="stat-sub">всего</div></div>
-            <div class="stat-card"><div class="stat-icon">⬆️</div><div class="stat-label">Максимум</div><div class="stat-value">${maxReceipt ? formatMoney(maxReceipt.total) : '0 ₽'}</div><div class="stat-sub">${maxReceipt ? escapeHtml(maxReceipt.store) : '—'}</div></div>
-            <div class="stat-card"><div class="stat-icon">⬇️</div><div class="stat-label">Минимум</div><div class="stat-value">${minReceipt ? formatMoney(minReceipt.total) : '0 ₽'}</div><div class="stat-sub">${minReceipt ? escapeHtml(minReceipt.store) : '—'}</div></div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title">📊 Расходы по категориям</div>
-            <div class="categories-list">
-                ${Object.entries(categoryTotals).map(([cat, amount]) => {
-                    const percent = ((amount / totalSum) * 100).toFixed(1);
-                    const categoryClass = getCategoryClassForExport(cat);
-                    return `
-                        <div>
-                            <div class="category-item">
-                                <div class="category-info">
-                                    <span class="category-badge ${categoryClass}">${getCategoryIcon(cat)} ${cat}</span>
-                                    <span class="category-percent">${percent}%</span>
-                                </div>
-                                <div class="category-amount">${formatMoney(amount)}</div>
-                            </div>
-                            <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%;"></div></div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-            ${topCategory ? `
-                <div style="margin-top: 24px; padding: 20px; background: linear-gradient(135deg, #667eea10, #764ba210); border-radius: 16px; text-align: center;">
-                    <div style="font-size: 14px; color: #6b7280;">🏆 Самая популярная категория</div>
-                    <div style="font-size: 24px; font-weight: 700; color: #667eea; margin-top: 8px;">${topCategory[0]}</div>
-                    <div style="font-size: 14px; color: #6b7280; margin-top: 8px;">${formatMoney(topCategory[1])} (${((topCategory[1] / totalSum) * 100).toFixed(1)}% всех расходов)</div>
-                </div>
-            ` : ''}
-        </div>
-        
-        <div class="section">
-            <div class="section-title">📅 Динамика по месяцам</div>
-            <div class="months-grid">
-                ${Object.entries(monthlyTotals).sort((a, b) => b[0].localeCompare(a[0])).map(([month, amount]) => {
-                    const [monthNum, year] = month.split('.');
-                    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-                    const monthName = monthNames[parseInt(monthNum) - 1];
-                    return `<div class="month-card"><div class="month-name">${monthName} ${year}</div><div class="month-amount">${formatMoney(amount)}</div></div>`;
-                }).join('')}
-            </div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title">📋 Детальная таблица чеков</div>
-            <div class="table-wrapper">
-                 <table>
-                    <thead>
-                        <tr><th>№</th><th>Дата</th><th>Магазин</th><th>Категория</th><th>Товары</th><th style="text-align: right;">Сумма</th></tr>
-                    </thead>
-                    <tbody>
-                        ${sortedReceipts.map((receipt, index) => {
-                            const categoryClass = getCategoryClassForExport(receipt.category);
-                            const itemsText = receipt.items.map(i => `${i.name} (${formatMoney(i.price)} x ${i.quantity})`).join('; ');
-                            return `
-                                <tr>
-                                    <td>${index + 1}</td>
-                                    <td>${receipt.date}</td>
-                                    <td><strong>${escapeHtml(receipt.store)}</strong></td>
-                                    <td><span class="category-badge ${categoryClass}">${getCategoryIcon(receipt.category)} ${receipt.category}</span></td>
-                                    <td style="max-width: 300px;">${escapeHtml(itemsText.substring(0, 80))}${itemsText.length > 80 ? '...' : ''}</td>
-                                    <td style="text-align: right;" class="amount">${formatMoney(receipt.total)}</td>
-                                </tr>
-                            `;
-                        }).join('')}
-                        <tr class="total-row"><td colspan="5" style="text-align: right; font-weight: 600;">ИТОГО:</td><td style="text-align: right; font-weight: 700;">${formatMoney(totalSum)}</td></tr>
-                    </tbody>
-                 </table>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <div>📊 Отчёт сгенерирован автоматически • Данные актуальны на ${new Date().toLocaleString('ru-RU')}</div>
-            <div>💡 ЧекСкан Pro — ваш финансовый помощник</div>
-            <div class="footer-buttons">
-                <button class="print-btn" onclick="window.print()">🖨️ Распечатать</button>
-                <button class="pdf-btn" onclick="window.print()">📄 Сохранить как PDF</button>
-            </div>
-        </div>
-    </div>
-</body>
-</html>`;
-}
+            <div class="date">Дата отчёта: ${new Date().toLocaleDate

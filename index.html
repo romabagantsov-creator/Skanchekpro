@@ -14,10 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <!-- Tesseract.js для OCR -->
-    <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
-    
-    <!-- jsQR для распознавания QR-кодов -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
     
     <!-- Наши стили -->
     <link rel="stylesheet" href="css/style.css">
@@ -58,7 +55,7 @@
                     <div class="upload-zone" id="uploadZone">
                         <div class="upload-icon">📷</div>
                         <div class="upload-title">Сфотографируйте чек или загрузите фото</div>
-                        <div class="upload-sub">Нажмите для выбора файла</div>
+                        <div class="upload-sub">Нажмите для выбора файла или перетащите фото</div>
                         <div class="badge-container">
                             <span class="badge">JPG</span>
                             <span class="badge">PNG</span>
@@ -140,7 +137,7 @@
     <!-- Модальное окно будет добавляться сюда -->
     <div id="modalRoot"></div>
     
-    <!-- Наши скрипты -->
+    <!-- Наши скрипты (важно: порядок подключения!) -->
     <script src="js/data.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/ocr.js"></script>

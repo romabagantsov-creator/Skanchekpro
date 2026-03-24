@@ -19,23 +19,29 @@ const CUSTOMIZATION = {
 };
 
 /**
- * Загрузка настроек
+ * Загрузка настроек из localStorage
  */
 function loadCustomization() {
     const saved = localStorage.getItem('checksan_customization');
     if (saved) {
-        Object.assign(CUSTOMIZATION, JSON.parse(saved));
+        try {
+            const parsed = JSON.parse(saved);
+            Object.assign(CUSTOMIZATION, parsed);
+        } catch(e) {
+            console.warn('Ошибка загрузки настроек', e);
+        }
     }
     applyCustomization();
 }
 
 /**
- * Применение настроек
+ * Применение настроек к странице
  */
 function applyCustomization() {
     // Тема
     document.body.setAttribute('data-theme', CUSTOMIZATION.theme);
-    
+    console.log('Применена тема:', CUSTOMIZATION.theme); // для отладки
+
     // Размер шрифта
     const fontSizeMap = {
         small: '14px',
@@ -44,15 +50,15 @@ function applyCustomization() {
         xlarge: '20px'
     };
     document.body.style.fontSize = fontSizeMap[CUSTOMIZATION.fontSize] || '16px';
-    
+
     // Компактный режим
     if (CUSTOMIZATION.compactMode) {
         document.body.classList.add('compact-mode');
     } else {
         document.body.classList.remove('compact-mode');
     }
-    
-    // Сохраняем
+
+    // Сохраняем настройки в localStorage
     localStorage.setItem('checksan_customization', JSON.stringify(CUSTOMIZATION));
 }
 
@@ -60,6 +66,10 @@ function applyCustomization() {
  * Открыть панель настроек
  */
 function openSettings() {
+    // Удаляем существующее модальное окно, если есть
+    const existingModal = document.querySelector('.modal');
+    if (existingModal) existingModal.remove();
+
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
@@ -87,7 +97,7 @@ function openSettings() {
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">📊 Компактный режим</label>
+                    <label class="form-label">📦 Компактный режим</label>
                     <label style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="compactMode" ${CUSTOMIZATION.compactMode ? 'checked' : ''}>
                         Уменьшить отступы и элементы
@@ -98,25 +108,31 @@ function openSettings() {
                     <label class="form-label">🎨 Цвета категорий</label>
                     <div id="colorSettings" style="display: flex; flex-direction: column; gap: 8px;">
                         ${Object.entries(CUSTOMIZATION.defaultCategoryColors).map(([cat, color]) => `
-                            <div style="display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+                            <div class="color-setting" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: var(--bg-tertiary); border-radius: 8px;">
                                 <span>${cat}</span>
-                                <input type="color" data-category="${cat}" value="${color}" class="category-color-input" style="width: 50px; height: 30px; border-radius: 8px;">
+                                <input type="color" data-category="${cat}" value="${color}" style="width: 50px; height: 30px; border: none; border-radius: 6px; cursor: pointer; background: transparent;">
                             </div>
                         `).join('')}
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-                <button class="btn btn-primary" onclick="saveSettings()">Сохранить</button>
+                <button class="btn btn-secondary" style="width: auto; margin: 0; padding: 0.5rem 1rem;" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" style="width: auto; margin: 0; padding: 0.5rem 1rem;" id="saveSettingsBtn">💾 Сохранить</button>
             </div>
         </div>
     `;
     
     document.getElementById('modalRoot').appendChild(modal);
     
+    // Добавляем обработчик для кнопки сохранения
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    if (saveBtn) {
+        saveBtn.onclick = () => saveSettings();
+    }
+    
     // Добавляем обработчики для цветов
-    document.querySelectorAll('.category-color-input').forEach(input => {
+    document.querySelectorAll('input[type="color"]').forEach(input => {
         input.addEventListener('change', (e) => {
             const category = e.target.dataset.category;
             CUSTOMIZATION.defaultCategoryColors[category] = e.target.value;
@@ -128,15 +144,26 @@ function openSettings() {
  * Сохранение настроек
  */
 function saveSettings() {
-    CUSTOMIZATION.theme = document.getElementById('themeSelect').value;
-    CUSTOMIZATION.fontSize = document.getElementById('fontSizeSelect').value;
-    CUSTOMIZATION.compactMode = document.getElementById('compactMode').checked;
+    const themeSelect = document.getElementById('themeSelect');
+    const fontSizeSelect = document.getElementById('fontSizeSelect');
+    const compactModeCheck = document.getElementById('compactMode');
     
+    if (themeSelect) CUSTOMIZATION.theme = themeSelect.value;
+    if (fontSizeSelect) CUSTOMIZATION.fontSize = fontSizeSelect.value;
+    if (compactModeCheck) CUSTOMIZATION.compactMode = compactModeCheck.checked;
+    
+    // Сохраняем цвета категорий (они уже обновлены в CUSTOMIZATION через обработчики)
+    
+    // Применяем настройки
     applyCustomization();
+    
+    // Закрываем модальное окно
     closeModal();
     
-    // Обновляем график с новыми цветами
-    renderChart(window.appState.receipts);
+    // Обновляем график с новыми цветами (если функция существует)
+    if (typeof renderChart === 'function' && window.appState) {
+        renderChart(window.appState.receipts);
+    }
     
     showToast('Настройки сохранены!', 'success');
 }

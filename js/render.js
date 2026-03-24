@@ -211,3 +211,90 @@ function renderAll(receipts, selectedId) {
         renderDetail(null);
     }
 }
+
+
+
+/**
+ * Отрисовка дополнительной аналитики
+ */
+function renderAdvancedAnalytics(receipts) {
+    const container = document.getElementById('advancedAnalytics');
+    if (!container) return;
+    
+    if (receipts.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📊</div>
+                <div class="empty-text">Добавьте чеки для просмотра аналитики</div>
+            </div>
+        `;
+        return;
+    }
+    
+    const comparison = compareWithLastMonth(receipts);
+    const topCategories = getTopCategories(receipts);
+    const anomalies = detectAnomalies(receipts);
+    
+    container.innerHTML = `
+        <div class="analytics-grid">
+            <div class="analytics-card">
+                <div class="analytics-title">📈 Тренд расходов</div>
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div class="analytics-card">
+                <div class="analytics-title">📅 По дням недели</div>
+                <canvas id="weeklyChart"></canvas>
+            </div>
+            <div class="analytics-card">
+                <div class="analytics-title">📊 Сравнение с прошлым месяцем</div>
+                <div class="comparison-stats">
+                    <div class="comparison-item">
+                        <span class="comparison-label">Этот месяц:</span>
+                        <span class="comparison-value">${formatMoney(comparison.current)}</span>
+                    </div>
+                    <div class="comparison-item">
+                        <span class="comparison-label">Прошлый месяц:</span>
+                        <span class="comparison-value">${formatMoney(comparison.last)}</span>
+                    </div>
+                    <div class="comparison-item ${comparison.trend}">
+                        <span class="comparison-label">Изменение:</span>
+                        <span class="comparison-value">${comparison.change > 0 ? '+' : ''}${comparison.change.toFixed(1)}%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="analytics-card">
+                <div class="analytics-title">🏆 Топ категорий</div>
+                <div class="top-categories">
+                    ${topCategories.map(cat => `
+                        <div class="top-category">
+                            <span>${cat.name}</span>
+                            <span>${formatMoney(cat.amount)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ${anomalies.length > 0 ? `
+                <div class="analytics-card">
+                    <div class="analytics-title">⚠️ Аномальные покупки</div>
+                    <div class="anomalies-list">
+                        ${anomalies.map(a => `
+                            <div class="anomaly-item">
+                                <span>${a.store}</span>
+                                <span>${formatMoney(a.total)}</span>
+                                <span class="anomaly-date">${a.date}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    // Отрисовываем графики
+    renderTrendChart(receipts);
+    renderWeeklyChart(receipts);
+}
+
+
+
+

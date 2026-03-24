@@ -6,7 +6,7 @@ window.appState = {
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
-    // Загружаем настройки
+    // Загружаем настройки (ВАЖНО: сначала загружаем настройки!)
     if (typeof loadCustomization === 'function') {
         loadCustomization();
     }
@@ -51,16 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsBtn = document.getElementById('settingsBtn');
     if (settingsBtn && typeof openSettings === 'function') {
         settingsBtn.addEventListener('click', openSettings);
-    } else if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => showToast('⚙️ Настройки загружаются...', 'info'));
     }
     
     // Кнопка ассистента
     const assistantBtn = document.getElementById('assistantBtn');
     if (assistantBtn && typeof openAssistant === 'function') {
         assistantBtn.addEventListener('click', openAssistant);
-    } else if (assistantBtn) {
-        assistantBtn.addEventListener('click', () => showToast('🤖 ИИ-ассистент загружается...', 'info'));
     }
 });
 

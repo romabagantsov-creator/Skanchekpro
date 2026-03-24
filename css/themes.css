@@ -1,1 +1,73 @@
+/* ==================== ТЕМЫ ОФОРМЛЕНИЯ ==================== */
 
+/* Тёмная тема (по умолчанию) */
+body[data-theme="dark"] {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #111117;
+    --bg-tertiary: #1a1a2a;
+    --bg-card: #13131f;
+    --border: #2a2a3a;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --accent-light: rgba(139, 92, 246, 0.1);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+}
+
+/* Светлая тема */
+body[data-theme="light"] {
+    --bg-primary: #f9fafb;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f3f4f6;
+    --bg-card: #ffffff;
+    --border: #e5e7eb;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --text-muted: #6b7280;
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --accent-light: rgba(139, 92, 246, 0.1);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+}
+
+/* Лесная тема */
+body[data-theme="forest"] {
+    --bg-primary: #0f2a1f;
+    --bg-secondary: #1a3a2a;
+    --bg-tertiary: #2a4a3a;
+    --bg-card: #1a3a2a;
+    --border: #3a5a4a;
+    --text-primary: #e8f0e8;
+    --text-secondary: #c0d0c0;
+    --text-muted: #90a090;
+    --accent: #4ade80;
+    --accent-hover: #22c55e;
+    --accent-light: rgba(74, 222, 128, 0.1);
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --error: #f87171;
+}
+
+/* Океанская тема */
+body[data-theme="ocean"] {
+    --bg-primary: #0c2b3a;
+    --bg-secondary: #1c3e4a;
+    --bg-tertiary: #2c4e5a;
+    --bg-card: #1c3e4a;
+    --border: #3c5e6a;
+    --text-primary: #e0f0f5;
+    --text-secondary: #b0d0e0;
+    --text-muted: #80b0c0;
+    --accent: #06b6d4;
+    --accent-hover: #0891b2;
+    --accent-light: rgba(6, 182, 212, 0.1);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+}

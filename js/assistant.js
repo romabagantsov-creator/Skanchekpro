@@ -220,27 +220,41 @@ function getAnswer(query) {
     const lower = query.toLowerCase();
     
     // ============ КРУПНЫЕ ПОКУПКИ ============
-    if (lower.includes('крупн') || lower.includes('больш') || lower.includes('дорог') || 
-        lower.includes('максимальн') || lower.includes('самый дорогой') || lower.includes('самые дорогие')) {
-        
-        if (receipts.length === 0) {
-            return '📭 У вас пока нет чеков. Добавьте чеки, чтобы я мог показать крупные покупки!';
-        }
-        
-        const sorted = [...receipts].sort((a, b) => (b.total || 0) - (a.total || 0));
-        const top5 = sorted.slice(0, 5);
-        
-        let response = '💎 *Ваши самые крупные покупки:*\n\n';
-        top5.forEach((r, i) => {
-            response += `${i+1}. ${r.store || 'Магазин'} — ${formatMoney(r.total)} (${r.date || 'дата неизвестна'})\n`;
-        });
-        
-        if (top5.length === 0) {
-            response = '📭 Нет данных о крупных покупках.';
-        }
-        
-        return response;
+if (lower.includes('крупн') || lower.includes('больш') || lower.includes('дорог') || 
+    lower.includes('максимальн') || lower.includes('самый дорогой') || lower.includes('самые дорогие') ||
+    lower.includes('что купил') || lower.includes('какие товары') || lower.includes('что было куплено')) {
+    
+    if (receipts.length === 0) {
+        return '📭 У вас пока нет чеков. Добавьте чеки, чтобы я мог показать крупные покупки!';
     }
+    
+    const sorted = [...receipts].sort((a, b) => (b.total || 0) - (a.total || 0));
+    const top5 = sorted.slice(0, 5);
+    
+    let response = '💎 *Ваши самые крупные покупки:*\n\n';
+    
+    top5.forEach((r, i) => {
+        response += `${i+1}. *${r.store || 'Магазин'}* — ${formatMoney(r.total)} (${r.date || 'дата неизвестна'})\n`;
+        
+        // Добавляем список товаров, если они есть
+        if (r.items && r.items.length > 0) {
+            const topItems = r.items.slice(0, 3); // Показываем до 3 товаров
+            const itemsList = topItems.map(item => {
+                return `   🛍️ ${item.name} — ${formatMoney(item.total)}`;
+            }).join('\n');
+            response += itemsList;
+            if (r.items.length > 3) {
+                response += `\n   ... и ещё ${r.items.length - 3} ${declension(r.items.length - 3, 'товар', 'товара', 'товаров')}`;
+            }
+            response += '\n';
+        } else if (r.total > 0) {
+            response += `   🛍️ Покупка на сумму ${formatMoney(r.total)}\n`;
+        }
+        response += '\n';
+    });
+    
+    return response;
+}
     
     // ============ ОБЩАЯ СУММА ============
     if (lower.includes('сколько') || (lower.includes('потратил') && !lower.includes('месяц')) || lower.includes('всего')) {

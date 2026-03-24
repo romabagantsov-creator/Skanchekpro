@@ -1,4 +1,4 @@
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===================
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
 /**
  * Генерация уникального ID
@@ -11,7 +11,7 @@ function generateId() {
  * Форматирование денег
  */
 function formatMoney(value) {
-    if (value === undefined || value === null) return '0 ₽';
+    if (value === undefined || value === null || isNaN(value)) return '0 ₽';
     return new Intl.NumberFormat('ru-RU', { 
         style: 'currency', 
         currency: 'RUB',
@@ -57,21 +57,35 @@ function showToast(message, type = 'info') {
  * Получение совета по категории
  */
 function getAdviceByCategory(category) {
-    return ADVICE_BY_CATEGORY[category] || ADVICE_BY_CATEGORY['Прочее'];
+    const adviceMap = {
+        'Продукты': '📝 Покупайте продукты оптом и следите за акциями. Используйте карты лояльности магазинов — это экономит до 10-15% бюджета.',
+        'Рестораны': '🍽️ Готовьте дома чаще. Если обедаете вне дома, ищите бизнес-ланчи — они на 30-50% дешевле обычного меню.',
+        'Транспорт': '🚗 Для регулярных поездок рассмотрите проездной билет. Каршеринг может быть выгоднее такси при поездках более 30 минут.',
+        'Аптека': '💊 Проверяйте наличие дженериков — они дешевле брендовых препаратов. Ведите здоровый образ жизни, чтобы реже болеть.',
+        'Электроника': '💻 Сравнивайте цены в 3-4 магазинах перед покупкой. Используйте кэшбэк-сервисы — можно вернуть до 15% от суммы.',
+        'Одежда': '👗 Покупайте в конце сезона — скидки достигают 70%. Составляйте капсульный гардероб, чтобы меньше тратить.',
+        'Развлечения': '🎮 Ищите бесплатные мероприятия в городе. Многие музеи имеют бесплатные дни посещения.',
+        'Дом': '🏠 Планируйте крупные покупки заранее и откладывайте на них. Ремонт делайте поэтапно.',
+        'Прочее': '💡 Ведите учет расходов — это первый шаг к финансовой свободе. Откладывайте 10-20% от каждой покупки.'
+    };
+    return adviceMap[category] || adviceMap['Прочее'];
 }
 
 /**
  * Создание нового пустого чека
  */
 function createEmptyReceipt() {
+    const today = new Date();
+    const formattedDate = `${today.getDate().toString().padStart(2, '0')}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getFullYear()}`;
+    
     return {
         id: generateId(),
-        store: 'Новый магазин',
-        date: new Date().toLocaleDateString('ru-RU'),
+        store: '',
+        date: formattedDate,
         category: 'Прочее',
         total: 0,
-        items: [{ name: 'Новый товар', quantity: 1, price: 0, total: 0 }],
-        notes: 'Добавьте описание покупки...'
+        items: [],
+        notes: ''
     };
 }
 
@@ -97,6 +111,66 @@ function loadFromLocalStorage() {
  * Получение демо-данных с уникальными ID
  */
 function getDemoReceipts() {
+    const DEMO_RECEIPTS = [
+        {
+            store: 'Пятёрочка',
+            date: '15.03.2026',
+            category: 'Продукты',
+            total: 1247.50,
+            items: [
+                { name: 'Молоко 3.2%', quantity: 2, price: 89.90, total: 179.80 },
+                { name: 'Хлеб бородинский', quantity: 1, price: 54.90, total: 54.90 },
+                { name: 'Сыр российский', quantity: 0.3, price: 890.00, total: 267.00 },
+                { name: 'Яйца С0', quantity: 1, price: 189.90, total: 189.90 },
+                { name: 'Масло сливочное', quantity: 1, price: 129.90, total: 129.90 },
+                { name: 'Курица филе', quantity: 1, price: 426.00, total: 426.00 }
+            ],
+            notes: 'Средний чек в магазине у дома. Обратите внимание на акции по карте лояльности.'
+        },
+        {
+            store: 'Яндекс.Такси',
+            date: '14.03.2026',
+            category: 'Транспорт',
+            total: 389,
+            items: [
+                { name: 'Поездка до работы', quantity: 1, price: 389, total: 389 }
+            ],
+            notes: 'Вечерний тариф. При поездках в часы пик стоимость выше на 30%.'
+        },
+        {
+            store: 'М.Видео',
+            date: '13.03.2026',
+            category: 'Электроника',
+            total: 2172,
+            items: [
+                { name: 'Наушники Bluetooth', quantity: 1, price: 2172, total: 2172 }
+            ],
+            notes: 'Перед покупкой техники сравните цены в 3-4 магазинах. Используйте кэшбэк-сервисы.'
+        },
+        {
+            store: 'KFC',
+            date: '12.03.2026',
+            category: 'Рестораны',
+            total: 845,
+            items: [
+                { name: 'Бокс', quantity: 1, price: 499, total: 499 },
+                { name: 'Картошка фри', quantity: 1, price: 149, total: 149 },
+                { name: 'Наггетсы 6 шт', quantity: 1, price: 197, total: 197 }
+            ],
+            notes: 'Фастфуд — дорогое удовольствие. Домашний обед обойдётся в 2-3 раза дешевле.'
+        },
+        {
+            store: 'Аптека Апрель',
+            date: '11.03.2026',
+            category: 'Аптека',
+            total: 567,
+            items: [
+                { name: 'Витамины', quantity: 1, price: 567, total: 567 }
+            ],
+            notes: 'Проверяйте наличие дженериков — они дешевле брендовых препаратов.'
+        }
+    ];
+    
     return DEMO_RECEIPTS.map(receipt => ({
         ...receipt,
         id: generateId()
@@ -128,33 +202,44 @@ function calculateCategoryTotals(receipts) {
 }
 
 /**
- * Получение цвета категории
+ * Получение цвета категории (с учётом пользовательских настроек)
  */
 function getCategoryColor(category) {
-    return CATEGORIES[category]?.color || '#6b7280';
+    // Проверяем, есть ли пользовательские настройки цветов
+    if (typeof window !== 'undefined' && window.categoryColors && window.categoryColors[category]) {
+        return window.categoryColors[category];
+    }
+    
+    // Стандартные цвета (fallback)
+    const defaultColors = {
+        'Продукты': '#4ade80',
+        'Рестораны': '#f472b6',
+        'Транспорт': '#8b5cf6',
+        'Аптека': '#f59e0b',
+        'Электроника': '#06b6d4',
+        'Одежда': '#ef4444',
+        'Развлечения': '#d946ef',
+        'Дом': '#14b8a6',
+        'Прочее': '#6b7280'
+    };
+    
+    return defaultColors[category] || '#6b7280';
 }
 
 /**
  * Получение иконки категории
  */
 function getCategoryIcon(category) {
-    return CATEGORIES[category]?.icon || '📦';
-}
-
-/**
- * Создание нового пустого чека
- */
-function createEmptyReceipt() {
-    const today = new Date();
-    const formattedDate = `${today.getDate().toString().padStart(2, '0')}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getFullYear()}`;
-    
-    return {
-        id: generateId(),
-        store: '',
-        date: formattedDate,
-        category: 'Прочее',
-        total: 0,
-        items: [],  // Пустой массив товаров
-        notes: ''
+    const icons = {
+        'Продукты': '🛒',
+        'Рестораны': '🍽️',
+        'Транспорт': '🚗',
+        'Аптека': '💊',
+        'Электроника': '💻',
+        'Одежда': '👗',
+        'Развлечения': '🎮',
+        'Дом': '🏠',
+        'Прочее': '📦'
     };
+    return icons[category] || '📦';
 }

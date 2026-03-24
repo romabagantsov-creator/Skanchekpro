@@ -49,8 +49,8 @@ function openAssistant() {
     if (closeBtn) {
         closeBtn.onclick = () => closeAssistant();
         closeBtn.onmouseover = () => {
-            closeBtn.style.background = 'var(--accent-light)';
-            closeBtn.style.color = 'var(--error)';
+            closeBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+            closeBtn.style.color = '#ef4444';
         };
         closeBtn.onmouseout = () => {
             closeBtn.style.background = 'none';
@@ -206,7 +206,11 @@ function getAssistantResponse(query) {
             return '📭 У вас пока нет чеков. Добавьте несколько чеков, и я смогу показать статистику!';
         }
         
-        return `💰 За всё время вы потратили ${formatMoney(total)} на ${count} ${declension(count, 'покупку', 'покупки', 'покупок')}.`;
+        let word = 'покупок';
+        if (count === 1) word = 'покупку';
+        else if (count >= 2 && count <= 4) word = 'покупки';
+        
+        return `💰 За всё время вы потратили ${formatMoney(total)} на ${count} ${word}.`;
     }
     
     // Вопрос о текущем месяце
@@ -222,7 +226,6 @@ function getAssistantResponse(query) {
             if (r.date) {
                 const parts = r.date.split('.');
                 if (parts.length === 3) {
-                    const day = parseInt(parts[0]);
                     const month = parseInt(parts[1]) - 1;
                     const year = parseInt(parts[2]);
                     
@@ -234,13 +237,17 @@ function getAssistantResponse(query) {
             }
         });
         
-        const monthNames = ['Январе', 'Феврале', 'Марте', 'Апреле', 'Мае', 'Июне', 'Июле', 'Августе', 'Сентябре', 'Октябре', 'Ноябре', 'Декабре'];
+        const monthNames = ['Январе', 'Феврале', 'Марте', 'Апреле', 'Мае', 'Июне', 'Июле', 'Августе', 'Сентябре', 'Октябре', 'Ноembre', 'Декабре'];
         
         if (monthCount === 0) {
             return `📭 В ${monthNames[currentMonth]} у вас пока нет чеков. Добавьте чеки за этот месяц, чтобы увидеть статистику!`;
         }
         
-        return `📊 В ${monthNames[currentMonth]} вы потратили ${formatMoney(monthTotal)} на ${monthCount} ${declension(monthCount, 'покупку', 'покупки', 'покупок')}.`;
+        let word = 'покупок';
+        if (monthCount === 1) word = 'покупку';
+        else if (monthCount >= 2 && monthCount <= 4) word = 'покупки';
+        
+        return `📊 В ${monthNames[currentMonth]} вы потратили ${formatMoney(monthTotal)} на ${monthCount} ${word}.`;
     }
     
     // Вопрос о категориях
@@ -259,7 +266,8 @@ function getAssistantResponse(query) {
         
         let response = '🏆 Ваши топ категории:\n\n';
         sorted.slice(0, 5).forEach(([cat, amount], i) => {
-            const percent = ((amount / Object.values(categoryTotals).reduce((a, b) => a + b, 0)) * 100).toFixed(1);
+            const totalAll = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
+            const percent = ((amount / totalAll) * 100).toFixed(1);
             response += `${i+1}. ${getCategoryIcon(cat)} ${cat} — ${formatMoney(amount)} (${percent}%)\n`;
         });
         return response;
@@ -295,8 +303,7 @@ function getAssistantResponse(query) {
             }
         }
         
-        advice += '• Откладывайте 10% от каждой покупки на накопления — это поможет создать финансовую подушку.\n';
-        advice += '• Используйте приложения для сравнения цен перед покупкой.';
+        advice += '• Откладывайте 10% от каждой покупки на накопления — это поможет создать финансовую подушку.';
         
         return advice;
     }
@@ -339,16 +346,4 @@ function getAssistantResponse(query) {
 • "Средний чек"
 
 Или скажите "помощь" для полного списка команд.`;
-}
-
-/**
- * Склонение существительных
- */
-function declension(number, one, two, five) {
-    const n = Math.abs(number) % 100;
-    const n1 = n % 10;
-    if (n > 10 && n < 20) return five;
-    if (n1 > 1 && n1 < 5) return two;
-    if (n1 === 1) return one;
-    return five;
 }

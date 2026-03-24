@@ -1,5 +1,7 @@
 // ==================== ОТРИСОВКА ИНТЕРФЕЙСА ====================
 
+let categoryChart = null;
+
 /**
  * Отрисовка списка чеков
  */
@@ -19,7 +21,7 @@ function renderReceiptsList(receipts, selectedId) {
     
     container.innerHTML = receipts.map(receipt => `
         <div class="receipt-item ${selectedId === receipt.id ? 'active' : ''}" onclick="window.selectReceipt('${receipt.id}')">
-            <div class="receipt-icon">
+            <div class="receipt-icon" style="background: ${getCategoryColor(receipt.category)}20;">
                 ${getCategoryIcon(receipt.category)}
             </div>
             <div class="receipt-info">
@@ -52,8 +54,6 @@ function renderStats(receipts) {
 /**
  * Отрисовка графика
  */
-let categoryChart = null;
-
 function renderChart(receipts) {
     const categoryTotals = calculateCategoryTotals(receipts);
     const ctx = document.getElementById('categoryChart')?.getContext('2d');
@@ -65,10 +65,10 @@ function renderChart(receipts) {
     
     const labels = Object.keys(categoryTotals);
     const data = Object.values(categoryTotals);
+    // Используем getCategoryColor() для получения цветов
     const colors = labels.map(cat => getCategoryColor(cat));
     
     if (labels.length === 0) {
-        // Показываем пустой график
         categoryChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -139,11 +139,13 @@ function renderDetail(receipt) {
     
     container.innerHTML = `
         <div class="card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <span>🧾 Детали чека</span>
-                <button class="delete-btn" onclick="window.editReceipt('${receipt.id}')" style="background: rgba(139, 92, 246, 0.2); padding: 0.25rem 0.75rem; border-radius: 0.5rem;">
-                    ✏️ Редактировать
-                </button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="delete-btn" onclick="window.editReceipt('${receipt.id}')" style="background: rgba(139, 92, 246, 0.2); padding: 0.25rem 0.75rem; border-radius: 0.5rem; cursor: pointer;">
+                        ✏️ Редактировать
+                    </button>
+                </div>
             </div>
             <div class="chart-container">
                 <div style="margin-bottom: 1.5rem;">
@@ -167,8 +169,7 @@ function renderDetail(receipt) {
                             <th>Кол-во</th>
                             <th style="text-align: right;">Цена</th>
                             <th style="text-align: right;">Сумма</th>
-                        </tr>
-                    </thead>
+                        </thead>
                     <tbody>
                         ${receipt.items.map(item => `
                             <tr>
@@ -211,90 +212,3 @@ function renderAll(receipts, selectedId) {
         renderDetail(null);
     }
 }
-
-
-
-/**
- * Отрисовка дополнительной аналитики
- */
-function renderAdvancedAnalytics(receipts) {
-    const container = document.getElementById('advancedAnalytics');
-    if (!container) return;
-    
-    if (receipts.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">📊</div>
-                <div class="empty-text">Добавьте чеки для просмотра аналитики</div>
-            </div>
-        `;
-        return;
-    }
-    
-    const comparison = compareWithLastMonth(receipts);
-    const topCategories = getTopCategories(receipts);
-    const anomalies = detectAnomalies(receipts);
-    
-    container.innerHTML = `
-        <div class="analytics-grid">
-            <div class="analytics-card">
-                <div class="analytics-title">📈 Тренд расходов</div>
-                <canvas id="trendChart"></canvas>
-            </div>
-            <div class="analytics-card">
-                <div class="analytics-title">📅 По дням недели</div>
-                <canvas id="weeklyChart"></canvas>
-            </div>
-            <div class="analytics-card">
-                <div class="analytics-title">📊 Сравнение с прошлым месяцем</div>
-                <div class="comparison-stats">
-                    <div class="comparison-item">
-                        <span class="comparison-label">Этот месяц:</span>
-                        <span class="comparison-value">${formatMoney(comparison.current)}</span>
-                    </div>
-                    <div class="comparison-item">
-                        <span class="comparison-label">Прошлый месяц:</span>
-                        <span class="comparison-value">${formatMoney(comparison.last)}</span>
-                    </div>
-                    <div class="comparison-item ${comparison.trend}">
-                        <span class="comparison-label">Изменение:</span>
-                        <span class="comparison-value">${comparison.change > 0 ? '+' : ''}${comparison.change.toFixed(1)}%</span>
-                    </div>
-                </div>
-            </div>
-            <div class="analytics-card">
-                <div class="analytics-title">🏆 Топ категорий</div>
-                <div class="top-categories">
-                    ${topCategories.map(cat => `
-                        <div class="top-category">
-                            <span>${cat.name}</span>
-                            <span>${formatMoney(cat.amount)}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            ${anomalies.length > 0 ? `
-                <div class="analytics-card">
-                    <div class="analytics-title">⚠️ Аномальные покупки</div>
-                    <div class="anomalies-list">
-                        ${anomalies.map(a => `
-                            <div class="anomaly-item">
-                                <span>${a.store}</span>
-                                <span>${formatMoney(a.total)}</span>
-                                <span class="anomaly-date">${a.date}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : ''}
-        </div>
-    `;
-    
-    // Отрисовываем графики
-    renderTrendChart(receipts);
-    renderWeeklyChart(receipts);
-}
-
-
-
-

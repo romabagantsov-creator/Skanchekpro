@@ -842,7 +842,7 @@ function generateBeautifulHTML(sortedReceipts, totalSum, avgSum, maxReceipt, min
                                     <td><span class="category-badge ${categoryClass}">${getCategoryIcon(receipt.category)} ${receipt.category}</span></td>
                                     <td style="max-width: 300px;">${escapeHtml(itemsText.substring(0, 80))}${itemsText.length > 80 ? '...' : ''}</td>
                                     <td style="text-align: right;" class="amount">${formatMoney(receipt.total)}</td>
-                                 </tr>
+                                </tr>
                             `;
                         }).join('')}
                         <tr class="total-row"><td colspan="5" style="text-align: right; font-weight: 600;">ИТОГО:</td><td style="text-align: right; font-weight: 700;">${formatMoney(totalSum)}</td></tr>
@@ -873,41 +873,39 @@ async function handleImageUpload(file) {
         return;
     }
     
-    const loadingToast = showLoadingToast('🔄 Обработка изображения...');
+    showToast('🔍 Распознавание чека...', 'info');
     
-    try {
+    // Проверяем, есть ли функция распознавания
+    if (typeof createReceiptFromImage === 'function') {
         const receiptData = await createReceiptFromImage(file);
         
-        if (!receiptData) {
-            closeToast(loadingToast);
-            showToast('❌ Не удалось распознать чек. Попробуйте сфотографировать чётче или добавьте вручную.', 'error');
-            if (confirm('Не удалось распознать чек. Хотите добавить его вручную?')) {
+        if (receiptData) {
+            window.appState.receipts.unshift(receiptData);
+            window.appState.selectedId = receiptData.id;
+            saveToLocalStorage(window.appState.receipts);
+            renderAll(window.appState.receipts, window.appState.selectedId);
+            showToast('✅ Чек успешно добавлен!', 'success');
+            
+            setTimeout(() => {
+                if (confirm('Хотите проверить и отредактировать данные?')) {
+                    editReceipt(receiptData.id);
+                }
+            }, 500);
+        } else {
+            showToast('❌ Не удалось распознать чек. Добавьте вручную.', 'error');
+            setTimeout(() => {
+                if (confirm('Добавить чек вручную?')) {
+                    addNewReceipt();
+                }
+            }, 500);
+        }
+    } else {
+        showToast('Функция распознавания временно недоступна. Добавьте чек вручную.', 'warning');
+        setTimeout(() => {
+            if (confirm('Добавить чек вручную?')) {
                 addNewReceipt();
             }
-            return;
-        }
-        
-        window.appState.receipts.unshift(receiptData);
-        window.appState.selectedId = receiptData.id;
-        
-        saveToLocalStorage(window.appState.receipts);
-        renderAll(window.appState.receipts, window.appState.selectedId);
-        
-        closeToast(loadingToast);
-        
-        const confidenceMsg = receiptData.ocrData?.fromQR ? ' (из QR-кода)' : ` (уверенность: ${Math.round(receiptData.ocrData?.confidence || 0)}%)`;
-        showToast(`✅ Чек распознан!${confidenceMsg}`, 'success');
-        
-        setTimeout(() => {
-            if (confirm('Хотите проверить и отредактировать распознанные данные?')) {
-                editReceipt(receiptData.id);
-            }
         }, 500);
-        
-    } catch (error) {
-        console.error('Ошибка:', error);
-        closeToast(loadingToast);
-        showToast('❌ Ошибка при обработке чека', 'error');
     }
 }
 
@@ -920,10 +918,12 @@ function initImageUpload() {
     
     if (!fileInput || !uploadZone) return;
     
+    // Обработчик клика
     uploadZone.addEventListener('click', () => {
         fileInput.click();
     });
     
+    // Обработчик выбора файла
     fileInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
@@ -931,6 +931,7 @@ function initImageUpload() {
         fileInput.value = '';
     });
     
+    // Drag & drop
     uploadZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadZone.classList.add('drag-over');

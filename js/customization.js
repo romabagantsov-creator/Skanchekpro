@@ -27,8 +27,17 @@ function loadCustomization() {
         try {
             const parsed = JSON.parse(saved);
             Object.assign(CUSTOMIZATION, parsed);
+            // Обновляем глобальные цвета
+            if (typeof window !== 'undefined') {
+                window.categoryColors = CUSTOMIZATION.defaultCategoryColors;
+            }
         } catch(e) {
             console.warn('Ошибка загрузки настроек', e);
+        }
+    } else {
+        // Инициализируем глобальные цвета
+        if (typeof window !== 'undefined') {
+            window.categoryColors = CUSTOMIZATION.defaultCategoryColors;
         }
     }
     applyCustomization();
@@ -40,7 +49,7 @@ function loadCustomization() {
 function applyCustomization() {
     // Тема
     document.body.setAttribute('data-theme', CUSTOMIZATION.theme);
-    console.log('Применена тема:', CUSTOMIZATION.theme); // для отладки
+    console.log('Применена тема:', CUSTOMIZATION.theme);
 
     // Размер шрифта
     const fontSizeMap = {
@@ -56,6 +65,11 @@ function applyCustomization() {
         document.body.classList.add('compact-mode');
     } else {
         document.body.classList.remove('compact-mode');
+    }
+
+    // Обновляем глобальную переменную с цветами
+    if (typeof window !== 'undefined') {
+        window.categoryColors = CUSTOMIZATION.defaultCategoryColors;
     }
 
     // Сохраняем настройки в localStorage
@@ -109,7 +123,7 @@ function openSettings() {
                     <div id="colorSettings" style="display: flex; flex-direction: column; gap: 8px;">
                         ${Object.entries(CUSTOMIZATION.defaultCategoryColors).map(([cat, color]) => `
                             <div class="color-setting" style="display: flex; align-items: center; justify-content: space-between; padding: 8px; background: var(--bg-tertiary); border-radius: 8px;">
-                                <span>${cat}</span>
+                                <span style="font-size: 13px;">${cat}</span>
                                 <input type="color" data-category="${cat}" value="${color}" style="width: 50px; height: 30px; border: none; border-radius: 6px; cursor: pointer; background: transparent;">
                             </div>
                         `).join('')}
@@ -136,6 +150,10 @@ function openSettings() {
         input.addEventListener('change', (e) => {
             const category = e.target.dataset.category;
             CUSTOMIZATION.defaultCategoryColors[category] = e.target.value;
+            // Обновляем глобальные цвета в реальном времени
+            if (typeof window !== 'undefined') {
+                window.categoryColors = CUSTOMIZATION.defaultCategoryColors;
+            }
         });
     });
 }
@@ -152,7 +170,7 @@ function saveSettings() {
     if (fontSizeSelect) CUSTOMIZATION.fontSize = fontSizeSelect.value;
     if (compactModeCheck) CUSTOMIZATION.compactMode = compactModeCheck.checked;
     
-    // Сохраняем цвета категорий (они уже обновлены в CUSTOMIZATION через обработчики)
+    // Цвета категорий уже обновлены в CUSTOMIZATION через обработчики
     
     // Применяем настройки
     applyCustomization();
@@ -160,9 +178,30 @@ function saveSettings() {
     // Закрываем модальное окно
     closeModal();
     
-    // Обновляем график с новыми цветами (если функция существует)
-    if (typeof renderChart === 'function' && window.appState) {
-        renderChart(window.appState.receipts);
+    // ОБНОВЛЯЕМ ВСЕ ЭЛЕМЕНТЫ, КОТОРЫЕ ИСПОЛЬЗУЮТ ЦВЕТА КАТЕГОРИЙ
+    if (window.appState && window.appState.receipts) {
+        // Обновляем график
+        if (typeof renderChart === 'function') {
+            renderChart(window.appState.receipts);
+        }
+        
+        // Обновляем отображение категорий в списке чеков
+        if (typeof renderReceiptsList === 'function') {
+            renderReceiptsList(window.appState.receipts, window.appState.selectedId);
+        }
+        
+        // Если выбран чек, обновляем его детали
+        if (window.appState.selectedId) {
+            const selectedReceipt = window.appState.receipts.find(r => r.id === window.appState.selectedId);
+            if (selectedReceipt && typeof renderDetail === 'function') {
+                renderDetail(selectedReceipt);
+            }
+        }
+        
+        // Обновляем статистику (если там есть цвета)
+        if (typeof renderStats === 'function') {
+            renderStats(window.appState.receipts);
+        }
     }
     
     showToast('Настройки сохранены!', 'success');

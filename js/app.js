@@ -6,6 +6,11 @@ window.appState = {
 
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
+    // Загружаем настройки
+    if (typeof loadCustomization === 'function') {
+        loadCustomization();
+    }
+    
     // Загружаем данные
     const savedData = loadFromLocalStorage();
     
@@ -42,27 +47,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearAllBtn = document.getElementById('clearAllBtn');
     if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllReceipts);
     
-    // Настройки и ассистент (если кнопки есть)
+    // Кнопка настроек
     const settingsBtn = document.getElementById('settingsBtn');
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            if (typeof openSettings === 'function') {
-                openSettings();
-            } else {
-                showToast('⚙️ Настройки будут доступны в следующем обновлении', 'info');
-            }
-        });
+    if (settingsBtn && typeof openSettings === 'function') {
+        settingsBtn.addEventListener('click', openSettings);
+    } else if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => showToast('⚙️ Настройки загружаются...', 'info'));
     }
     
+    // Кнопка ассистента
     const assistantBtn = document.getElementById('assistantBtn');
-    if (assistantBtn) {
-        assistantBtn.addEventListener('click', () => {
-            if (typeof openAssistant === 'function') {
-                openAssistant();
-            } else {
-                showToast('🤖 ИИ-ассистент будет доступен в следующем обновлении', 'info');
-            }
-        });
+    if (assistantBtn && typeof openAssistant === 'function') {
+        assistantBtn.addEventListener('click', openAssistant);
+    } else if (assistantBtn) {
+        assistantBtn.addEventListener('click', () => showToast('🤖 ИИ-ассистент загружается...', 'info'));
     }
 });
 
@@ -74,3 +72,7 @@ window.saveReceiptEdit = saveReceiptEdit;
 window.closeModal = closeModal;
 window.addItemRow = addItemRow;
 window.removeItemRow = removeItemRow;
+window.openSettings = openSettings;
+window.openAssistant = openAssistant;
+window.sendAssistantMessage = sendAssistantMessage;
+window.closeAssistant = closeAssistant;

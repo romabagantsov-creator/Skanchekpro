@@ -8,14 +8,11 @@ window.appState = {
 document.addEventListener('DOMContentLoaded', () => {
     // Загружаем данные
     const savedData = loadFromLocalStorage();
-    document.getElementById('settingsBtn')?.addEventListener('click', openSettings);
-    document.getElementById('assistantBtn')?.addEventListener('click', openAssistant);
     
     if (savedData && savedData.length > 0) {
         window.appState.receipts = savedData;
         window.appState.selectedId = savedData[0]?.id || null;
     } else {
-        // Добавляем демо-данные при первом запуске
         window.appState.receipts = getDemoReceipts();
         window.appState.selectedId = window.appState.receipts[0]?.id || null;
         saveToLocalStorage(window.appState.receipts);
@@ -23,20 +20,53 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Отрисовываем интерфейс
     renderAll(window.appState.receipts, window.appState.selectedId);
-    renderAdvancedAnalytics(window.appState.receipts);
     
     // Инициализируем загрузку фото
-    initImageUpload();
+    if (typeof initImageUpload === 'function') {
+        initImageUpload();
+    }
     
     // Навешиваем обработчики
-    document.getElementById('manualAddBtn')?.addEventListener('click', addNewReceipt);
-    document.getElementById('addDemoBtn')?.addEventListener('click', addDemoReceipts);
-    document.getElementById('exportHTMLBtn')?.addEventListener('click', exportToHTML);
-    document.getElementById('exportCSVBtn')?.addEventListener('click', exportToCSV);
-    document.getElementById('clearAllBtn')?.addEventListener('click', clearAllReceipts);
+    const manualAddBtn = document.getElementById('manualAddBtn');
+    if (manualAddBtn) manualAddBtn.addEventListener('click', addNewReceipt);
+    
+    const addDemoBtn = document.getElementById('addDemoBtn');
+    if (addDemoBtn) addDemoBtn.addEventListener('click', addDemoReceipts);
+    
+    const exportHTMLBtn = document.getElementById('exportHTMLBtn');
+    if (exportHTMLBtn) exportHTMLBtn.addEventListener('click', exportToHTML);
+    
+    const exportCSVBtn = document.getElementById('exportCSVBtn');
+    if (exportCSVBtn) exportCSVBtn.addEventListener('click', exportToCSV);
+    
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllReceipts);
+    
+    // Настройки и ассистент (если кнопки есть)
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            if (typeof openSettings === 'function') {
+                openSettings();
+            } else {
+                showToast('⚙️ Настройки будут доступны в следующем обновлении', 'info');
+            }
+        });
+    }
+    
+    const assistantBtn = document.getElementById('assistantBtn');
+    if (assistantBtn) {
+        assistantBtn.addEventListener('click', () => {
+            if (typeof openAssistant === 'function') {
+                openAssistant();
+            } else {
+                showToast('🤖 ИИ-ассистент будет доступен в следующем обновлении', 'info');
+            }
+        });
+    }
 });
 
-// Делаем функции глобальными для доступа из HTML
+// Делаем функции глобальными
 window.selectReceipt = selectReceipt;
 window.deleteReceipt = deleteReceipt;
 window.editReceipt = editReceipt;

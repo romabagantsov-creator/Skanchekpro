@@ -834,3 +834,123 @@ input[type="date"]::-webkit-datetime-edit-year-field {
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
+
+/* ==================== СТИЛИ ДЛЯ АССИСТЕНТА ==================== */
+.assistant-message {
+    padding: 12px 16px;
+    border-radius: 16px;
+    max-width: 85%;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.assistant-message.user {
+    background: var(--accent);
+    color: white;
+    align-self: flex-end;
+}
+
+.assistant-message.bot {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    align-self: flex-start;
+}
+
+.assistant-message.typing .dot {
+    animation: typing 1s infinite;
+    display: inline-block;
+}
+
+.assistant-message.typing .dot:nth-child(2) { animation-delay: 0.2s; }
+.assistant-message.typing .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
+
+/* ==================== АНАЛИТИКА ==================== */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.analytics-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.analytics-title {
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+.comparison-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comparison-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.comparison-item.increase .comparison-value {
+    color: var(--error);
+}
+
+.comparison-item.decrease .comparison-value {
+    color: var(--success);
+}
+
+.top-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.top-category {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.anomalies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.anomaly-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+}
+
+.anomaly-date {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Компактный режим */
+body.compact-mode .card-header {
+    padding: 8px 12px;
+}
+
+body.compact-mode .receipt-item {
+    padding: 6px 8px;
+}
+
+body.compact-mode .stat-card {
+    padding: 8px;
+}

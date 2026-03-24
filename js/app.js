@@ -8,6 +8,8 @@ window.appState = {
 document.addEventListener('DOMContentLoaded', () => {
     // Загружаем данные
     const savedData = loadFromLocalStorage();
+    document.getElementById('settingsBtn')?.addEventListener('click', openSettings);
+    document.getElementById('assistantBtn')?.addEventListener('click', openAssistant);
     
     if (savedData && savedData.length > 0) {
         window.appState.receipts = savedData;
@@ -21,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Отрисовываем интерфейс
     renderAll(window.appState.receipts, window.appState.selectedId);
+    renderAdvancedAnalytics(window.appState.receipts);
     
     // Инициализируем загрузку фото
     initImageUpload();

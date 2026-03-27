@@ -1,88 +1,66 @@
-// ==================== GOOGLE VISION + CLAUDE OCR ====================
-
-const GOOGLE_VISION_API_KEY = 'AIzaSyClA3O9whFxwktBZRs1XfEfl3zEyARuqE8';
+// ==================== УЛУЧШЕННЫЙ ПАРСЕР ====================
 
 /**
- * Шаг 1: Распознаём сырой текст через Google Vision
+ * Промпт для Claude - точно под формат БЫСТРОНОМ/ГРАНДТОРГ
  */
-async function recognizeWithGoogleVision(imageFile) {
-    const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result.split(',')[1]);
-        reader.onerror = () => rej(new Error('Ошибка чтения файла'));
-        reader.readAsDataURL(imageFile);
-    });
-
-    console.log('📤 Отправка в Vision API...', (imageFile.size / 1024).toFixed(1), 'КБ');
-
-    const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                requests: [{
-                    image: { content: base64 },
-                    features: [{ type: 'TEXT_DETECTION' }]
-                }]
-            })
-        }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.error?.message || 'Ошибка Google Vision API');
-    }
-
-    const text = data.responses[0]?.fullTextAnnotation?.text || '';
-    console.log('✅ Vision распознал текст, длина:', text.length);
-    console.log('📝 Превью:', text.substring(0, 300));
-
-    if (!text || text.length < 10) {
-        throw new Error('Не удалось распознать текст на изображении');
-    }
-
-    return text;
-}
-
-/**
- * Шаг 2: Структурируем текст через Claude API
- */
-async function parseReceiptWithClaude(rawText) {
-    console.log('🤖 Отправка текста в Claude для парсинга...');
-
-    const prompt = `Ты — парсер кассовых чеков. Из текста ниже извлеки данные и верни ТОЛЬКО валидный JSON без пояснений и без markdown-блоков.
+function buildClaudePrompt(rawText) {
+    return `Ты парсер кассовых чеков российских магазинов. Извлеки данные и верни ТОЛЬКО валидный JSON без markdown.
 
 Текст чека:
 """
 ${rawText}
 """
 
-Верни JSON строго в таком формате:
+Правила извлечения:
+
+1. МАГАЗИН - ищи в таком порядке:
+   - В строке "МЕСТО РАСЧЕТОВ МАГАЗИН "ИМЯ""
+   - В шапке чека в кавычках: ООО "ИМЯ"
+   - В строке "САЙТ" или "ТЕЛ" рядом с названием
+
+2. ДАТА - формат DD.MM.YY или DD.MM.YYYY (2-значный год → добавь "20" спереди)
+
+3. ИТОГО - строка "ИТОГО К ОПЛАТЕ" или просто "ИТОГО" → последнее число
+
+4. ТОВАРЫ - каждая строка формата:
+   [артикул] [ед.изм] [НАЗВАНИЕ] [цена] *[кол-во]=[сумма]
+   Примеры:
+   "132198 ШТ. БАТОН НАРЕЗКА 300Г 39.90 *1=39.90"
+   "54017 КГ СВИНИНА ОКОРОК Б/К ОХЛ 289.90 *1.512=438.33"
+   "205830 ШТ.[М+14017] МОЛОКО ТОЛМАЧЕ 104.98 *1=104.98"
+   
+   Из каждой строки возьми:
+   - name: только название товара (без артикула, без [М+...], очищенное)
+   - unit: ШТ или КГ или Л
+   - price: цена за единицу (число перед звёздочкой)
+   - quantity: количество (число после звёздочки, до знака =)
+   - total: итог по позиции (число после знака =)
+
+5. ИСКЛЮЧИ строки: ИТОГО, КАССИР, СПАСИБО, БОНУС, СКИДКА, НДС, СУММА, БЕЗНАЛИЧНЫМИ, ТЕЛ, САЙТ, ФН, ФД, ФП, СМЕНА, КАССА, КАССОВЫЙ
+
+Верни JSON:
 {
-  "store": "название магазина или null",
-  "date": "дата в формате DD.MM.YYYY или null",
-  "time": "время в формате HH:MM или null",
-  "total": число (итоговая сумма, 0 если не найдена),
+  "store": "название магазина",
+  "date": "DD.MM.YYYY",
+  "time": "HH:MM",
+  "total": 1765.31,
   "items": [
     {
-      "name": "название товара (очищенное, без артикулов и кодов)",
-      "quantity": число (количество или вес),
-      "unit": "ШТ или КГ или Л",
-      "price": число (цена за единицу),
-      "total": число (сумма по позиции)
+      "name": "БАТОН НАРЕЗКА 300Г",
+      "unit": "ШТ",
+      "price": 39.90,
+      "quantity": 1,
+      "total": 39.90
     }
   ]
+}`;
 }
 
-Правила:
-- Убери из названий товаров: артикулы, коды товаров (числа в начале), скобки с кодами типа [М+140]
-- Не включай в items служебные строки: ИТОГО, ВСЕГО, СУММА, КАССИР, СПАСИБО, БОНУСЫ и т.д.
-- total в items должен равняться price * quantity
-- Если quantity = 1 и единица не указана явно — ставь "ШТ"
-- store — ищи в кавычках или в шапке чека
-- Верни ТОЛЬКО JSON, без любого другого текста`;
+/**
+ * Улучшенный парсер через Claude
+ */
+async function parseReceiptWithClaude(rawText) {
+    console.log('🤖 Claude анализирует чек...');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -90,120 +68,60 @@ ${rawText}
         body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
             max_tokens: 1000,
-            messages: [{ role: 'user', content: prompt }]
+            messages: [{ role: 'user', content: buildClaudePrompt(rawText) }]
         })
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.error?.message || 'Ошибка Claude API');
-    }
+    if (!response.ok) throw new Error(data.error?.message || 'Ошибка Claude API');
 
     const rawJson = data.content
-        .map(block => block.type === 'text' ? block.text : '')
+        .map(b => b.type === 'text' ? b.text : '')
         .join('')
         .replace(/```json|```/g, '')
         .trim();
 
-    console.log('🤖 Claude вернул:', rawJson.substring(0, 200));
-
     const parsed = JSON.parse(rawJson);
 
-    // Санитизация: убеждаемся что числа — числа
+    // Санитизация
     parsed.total = Number(parsed.total) || 0;
     parsed.items = (parsed.items || []).map(item => ({
-        name: String(item.name || 'Товар').trim(),
+        name:     String(item.name || '').trim(),
+        unit:     String(item.unit || 'ШТ'),
+        price:    Number(item.price)    || 0,
         quantity: Number(item.quantity) || 1,
-        unit: String(item.unit || 'ШТ'),
-        price: Number(item.price) || 0,
-        total: Number(item.total) || 0
-    })).filter(item => item.price > 0 && item.name.length > 1);
+        total:    Number(item.total)    || 0
+    })).filter(i => i.price > 0 && i.name.length > 1);
 
-    console.log(`📦 Товаров: ${parsed.items.length}, Сумма: ${parsed.total}`);
+    console.log(`✅ Магазин: ${parsed.store}`);
+    console.log(`📅 Дата: ${parsed.date}`);
+    console.log(`💰 Итого: ${parsed.total}`);
+    console.log(`📦 Товаров: ${parsed.items.length}`);
+
     return parsed;
 }
 
 /**
- * Главная функция распознавания чека
- */
-async function recognizeReceipt(imageFile) {
-    showToast('🔍 Распознавание текста...', 'info');
-
-    let rawText;
-    try {
-        rawText = await recognizeWithGoogleVision(imageFile);
-    } catch (err) {
-        console.error('Vision ошибка:', err);
-        showToast(`❌ Ошибка Vision: ${err.message}`, 'error');
-        return null;
-    }
-
-    showToast('🤖 Claude анализирует чек...', 'info');
-
-    let parsed;
-    try {
-        parsed = await parseReceiptWithClaude(rawText);
-    } catch (err) {
-        console.error('Claude ошибка:', err);
-        showToast('⚠️ Ошибка Claude, пробуем резервный парсер...', 'warning');
-        // Резерв — старый regex-парсер
-        parsed = parseReceiptTextFallback(rawText);
-    }
-
-    if (parsed.items.length > 0 || parsed.total > 0) {
-        showToast(
-            `✅ Распознано ${parsed.items.length} товаров на ${formatMoney(parsed.total)}`,
-            'success'
-        );
-        return parsed;
-    } else {
-        showToast('⚠️ Чек распознан, но данные не найдены', 'warning');
-        return parsed;
-    }
-}
-
-/**
- * Создание объекта чека из изображения
- */
-async function createReceiptFromImage(imageFile) {
-    if (!imageFile?.type.startsWith('image/')) {
-        showToast('Пожалуйста, выберите изображение', 'error');
-        return null;
-    }
-    if (imageFile.size > 10 * 1024 * 1024) {
-        showToast('Файл слишком большой (макс 10 МБ)', 'error');
-        return null;
-    }
-
-    const recognized = await recognizeReceipt(imageFile);
-
-    if (!recognized) {
-        if (confirm('Не удалось распознать чек. Добавить вручную?')) addNewReceipt();
-        return null;
-    }
-
-    return {
-        id: generateId(),
-        store: recognized.store || 'Магазин',
-        date: recognized.date || new Date().toLocaleDateString('ru-RU'),
-        time: recognized.time || null,
-        category: 'Продукты',
-        total: recognized.total,
-        items: recognized.items,
-        notes: `📸 Распознано через Vision + Claude\n🛍️ Товаров: ${recognized.items.length}`
-    };
-}
-
-/**
- * Резервный regex-парсер (работает без Claude, для оффлайн/ошибок)
+ * Резервный regex-парсер (если Claude недоступен)
+ * Оптимизирован под формат БЫСТРОНОМ / ГРАНДТОРГ
  */
 function parseReceiptTextFallback(text) {
     const result = { store: null, date: null, time: null, total: 0, items: [] };
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    const storeMatch = text.match(/"([А-ЯЁ][А-ЯЁ\s\-]+)"/);
-    if (storeMatch) result.store = storeMatch[1].trim();
+    // --- Магазин ---
+    // "МЕСТО РАСЧЕТОВ МАГАЗИН "БЫСТРОНОМ""
+    const storePlace = text.match(/МЕСТО\s+РАСЧЕТОВ\s+МАГАЗИН\s+"([^"]+)"/i);
+    if (storePlace) {
+        result.store = storePlace[1].trim();
+    } else {
+        // ООО "ГРАНДТОРГ"
+        const storeOOO = text.match(/ООО\s+"([^"]+)"/i);
+        if (storeOOO) result.store = storeOOO[1].trim();
+    }
 
+    // --- Дата и время ---
+    // Формат: 20.03.26 18:55
     const dtMatch = text.match(/(\d{2})\.(\d{2})\.(\d{2,4})\s+(\d{2}):(\d{2})/);
     if (dtMatch) {
         const y = dtMatch[3].length === 2 ? '20' + dtMatch[3] : dtMatch[3];
@@ -211,36 +129,113 @@ function parseReceiptTextFallback(text) {
         result.time = `${dtMatch[4]}:${dtMatch[5]}`;
     }
 
-    const totalMatch = text.match(/ИТОГО\s*[=:]?\s*(\d+[.,]\d{2})/i)
-        || text.match(/БЕЗНАЛИЧНЫМИ\s*[=:]?\s*(\d+[.,]\d{2})/i);
+    // --- Итого ---
+    // "ИТОГО К ОПЛАТЕ =1765.31"
+    const totalMatch = text.match(/ИТОГО\s*К\s*ОПЛАТЕ\s*[=]?\s*(\d+[.,]\d{2})/i)
+                    || text.match(/ИТОГО\s*[=]\s*(\d+[.,]\d{2})/i);
     if (totalMatch) result.total = parseFloat(totalMatch[1].replace(',', '.'));
 
-    // Паттерн: 132198 ШТ. БАТОН НАРЕЗКА 300Г 39.90 *1=39.90
-    const lines = text.split('\n');
+    // --- Товары ---
+    // Паттерн: 132198 ШТ. БАТОН НАРЕЗКА 300Г   39.90  *1=39.90
+    // Паттерн: 54017 КГ СВИНИНА ОКОРОК Б/К ОХЛ  289.90 *1.512=438.33
+    // Паттерн: 205830 ШТ.[М+14017] МОЛОКО ТОЛМАЧЕ 104.98 *1=104.98
+    const itemRe = /^\d+\s+(ШТ|КГ|Л)[\.\s]*(?:\[[^\]]*\])?\s*(.+?)\s+(\d+[.,]\d{2})\s*\*([\d.,]+)=(\d+[.,]\d{2})/i;
+
+    const SKIP = ['ИТОГО','ВСЕГО','СУММА','КАССИР','СПАСИБО','БОНУС','СКИДКА','НДС','БЕЗНАЛИЧНЫМИ','ТЕЛ','САЙТ','ФН','ФД','ФП','СМЕНА','КАССА','КАССОВЫЙ','ПРИХОД'];
+
     for (const line of lines) {
-        const m = line.match(
-            /\d+\s+([А-ЯЁ]{2,3}\.?)\s+(.+?)\s+(\d+[.,]\d{2})\s+\*([\d.]+)=(\d+[.,]\d{2})/
-        );
+        const m = line.match(itemRe);
         if (!m) continue;
-        const name = m[2].replace(/\[[^\]]+\]/g, '').trim();
+
+        const unit  = m[1].toUpperCase();
+        let name    = m[2].replace(/\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
         const price = parseFloat(m[3].replace(',', '.'));
-        const qty = parseFloat(m[4]);
+        const qty   = parseFloat(m[4].replace(',', '.'));
         const total = parseFloat(m[5].replace(',', '.'));
-        const skip = ['ИТОГО','КАССИР','СПАСИБО','БОНУС','СМЕНА','ФН','ККТ'];
-        if (skip.some(w => name.toUpperCase().includes(w))) continue;
-        if (name.length > 2 && price > 0) {
-            result.items.push({ name, quantity: qty, unit: m[1].replace('.',''), price, total });
-        }
+
+        if (SKIP.some(w => name.toUpperCase().startsWith(w))) continue;
+        if (name.length < 2 || price <= 0 || price > 50000) continue;
+
+        result.items.push({ name, unit, price, quantity: qty, total });
     }
 
+    // Если ничего не распознали — создаём общую запись
     if (result.items.length === 0 && result.total > 0) {
-        result.items = [{ name: 'Покупка', quantity: 1, unit: 'ШТ', price: result.total, total: result.total }];
+        result.items = [{ name: 'Покупка', unit: 'ШТ', price: result.total, quantity: 1, total: result.total }];
     }
 
+    console.log(`📦 Fallback: ${result.items.length} товаров, ${result.total} ₽, ${result.store}`);
     return result;
 }
 
+/**
+ * Заполняем форму редактирования чека данными из OCR
+ */
+function fillReceiptForm(parsed) {
+    // Магазин
+    const storeInput = document.querySelector('input[placeholder="Например: Пятёрочка"]');
+    if (storeInput && parsed.store) storeInput.value = parsed.store;
+
+    // Дата (формат input[type=date] = YYYY-MM-DD)
+    const dateInput = document.querySelector('input[type="date"]');
+    if (dateInput && parsed.date) {
+        const [d, m, y] = parsed.date.split('.');
+        dateInput.value = `${y}-${m}-${d}`;
+    }
+
+    // Категория — если все товары продукты, ставим "Продукты"
+    const categorySelect = document.querySelector('select');
+    if (categorySelect) {
+        const options = Array.from(categorySelect.options);
+        const продукты = options.find(o => o.text.includes('Продукт'));
+        if (продукты) categorySelect.value = продукты.value;
+    }
+
+    // Товары — очищаем и добавляем новые
+    // (логика зависит от твоего фреймворка — адаптируй под свой код)
+    console.log('📋 Данные для формы:', parsed);
+    // Пример данных которые получишь:
+    // parsed.store   → "БЫСТРОНОМ"
+    // parsed.date    → "20.03.2026"
+    // parsed.total   → 1765.31
+    // parsed.items   → [{name, unit, price, quantity, total}, ...]
+}
+
+/**
+ * Главная функция — распознать и заполнить
+ */
+async function recognizeAndFill(imageFile) {
+    showToast('🔍 Читаем чек...', 'info');
+
+    let rawText;
+    try {
+        rawText = await recognizeWithGoogleVision(imageFile);
+    } catch (err) {
+        showToast(`❌ Ошибка Vision: ${err.message}`, 'error');
+        return null;
+    }
+
+    showToast('🤖 Анализируем данные...', 'info');
+
+    let parsed;
+    try {
+        parsed = await parseReceiptWithClaude(rawText);
+    } catch (err) {
+        console.warn('Claude недоступен, используем fallback:', err.message);
+        parsed = parseReceiptTextFallback(rawText);
+    }
+
+    fillReceiptForm(parsed);
+
+    showToast(
+        `✅ ${parsed.store || 'Магазин'} · ${parsed.items.length} товаров · ${parsed.total} ₽`,
+        'success'
+    );
+
+    return parsed;
+}
+
 async function initOCR() {
-    console.log('✅ Vision + Claude OCR готов');
+    console.log('✅ OCR готов (Vision + Claude + Fallback)');
     return true;
 }

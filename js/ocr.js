@@ -1,7 +1,7 @@
 // ==================== GOOGLE VISION OCR ====================
 
 // НОВЫЙ API КЛЮЧ
-const GOOGLE_VISION_API_KEY = 'AIzaSyB20eP8kUJURamTXVwmU63UmrgeZBgpoFs';
+const GOOGLE_VISION_API_KEY = 'AIzaSyClA3O9whFxwktBZRs1XfEfl3zEyARuqE8';
 
 /**
  * Распознавание чека через Google Vision API
@@ -9,15 +9,14 @@ const GOOGLE_VISION_API_KEY = 'AIzaSyB20eP8kUJURamTXVwmU63UmrgeZBgpoFs';
 async function recognizeWithGoogleVision(imageFile) {
     return new Promise(async (resolve, reject) => {
         try {
-            // Конвертируем в base64
             const base64 = await new Promise((res) => {
                 const reader = new FileReader();
                 reader.onload = () => res(reader.result.split(',')[1]);
                 reader.readAsDataURL(imageFile);
             });
             
-            console.log('📤 Отправка запроса в Google Vision...');
-            console.log('🔑 Ключ:', GOOGLE_VISION_API_KEY.substring(0, 15) + '...');
+            console.log('📤 Отправка запроса в Vision API...');
+            console.log('🔑 Ключ:', GOOGLE_VISION_API_KEY.substring(0, 10) + '...');
             console.log('📸 Размер фото:', (imageFile.size / 1024).toFixed(2), 'КБ');
             
             const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`, {
@@ -34,7 +33,7 @@ async function recognizeWithGoogleVision(imageFile) {
             const data = await response.json();
             
             if (!response.ok) {
-                console.error('❌ Google Vision ошибка:', data);
+                console.error('❌ Ошибка Vision API:', data);
                 const errorMsg = data.error?.message || 'Неизвестная ошибка';
                 reject(new Error(errorMsg));
                 return;
@@ -42,7 +41,6 @@ async function recognizeWithGoogleVision(imageFile) {
             
             const fullText = data.responses[0]?.fullTextAnnotation?.text || '';
             console.log('✅ Текст распознан! Длина:', fullText.length);
-            console.log('📝 Первые 300 символов:', fullText.substring(0, 300));
             
             resolve(fullText);
             
@@ -67,23 +65,12 @@ function parseReceiptText(text) {
     };
     
     // ============ ПОИСК МАГАЗИНА ============
-    const storePatterns = [
-        /"([А-ЯЁ][А-ЯЁ\s]+)"/,
-        /МАГАЗИН\s+"([^"]+)"/,
-        /([А-ЯЁ][А-ЯЁ\s]{3,30})(?:\n|$)/
-    ];
-    
-    for (const pattern of storePatterns) {
-        const match = text.match(pattern);
-        if (match) {
-            result.store = match[1]?.trim() || match[0]?.trim();
-            if (result.store && result.store.length > 2) break;
-        }
-    }
-    
-    if (!result.store) {
-        const knownStores = ['ПЯТЁРОЧКА', 'МАГНИТ', 'ПЕРЕКРЁСТОК', 'АШАН', 'ЛЕНТА', 'ГРАНДТОРГ', 'БЫСТРОНОМ'];
-        for (const store of knownStores) {
+    const storeMatch = text.match(/"([А-ЯЁ][А-ЯЁ\s]+)"/);
+    if (storeMatch) {
+        result.store = storeMatch[1];
+    } else {
+        const stores = ['ПЯТЁРОЧКА', 'МАГНИТ', 'ПЕРЕКРЁСТОК', 'АШАН', 'ЛЕНТА', 'ГРАНДТОРГ', 'БЫСТРОНОМ'];
+        for (const store of stores) {
             if (text.toUpperCase().includes(store)) {
                 result.store = store;
                 break;
@@ -105,8 +92,7 @@ function parseReceiptText(text) {
     const totalPatterns = [
         /ИТОГО\s*К?\s*ОПЛАТЕ\s*[=:]?\s*(\d+[\s,.]*\d*)/i,
         /ИТОГО\s*[=:]?\s*(\d+[\s,.]*\d*)/i,
-        /СУММА\s*ЧЕКА\s*[=:]?\s*(\d+[\s,.]*\d*)/i,
-        /БЕЗНАЛИЧНЫМИ\s*[=:]?\s*(\d+[\s,.]*\d*)/i
+        /СУММА\s*ЧЕКА\s*[=:]?\s*(\d+[\s,.]*\d*)/i
     ];
     
     for (const pattern of totalPatterns) {
@@ -123,9 +109,7 @@ function parseReceiptText(text) {
     // ============ ПОИСК ТОВАРОВ ============
     const lines = text.split('\n');
     const items = [];
-    
-    // Основной паттерн для формата: "Название    123.45    *1=123.45"
-    const itemPattern = /([А-ЯЁа-яё0-9\s\/\-\.\(\)]+?)\s+(\d+[\s,.]*\d*)\s+\*([\d.]+)=(\d+[\s,.]*\d*)/i;
+    const itemPattern = /([А-ЯЁа-яё0-9\s\/\-\.]+?)\s+(\d+[\s,.]*\d*)\s+\*([\d.]+)=(\d+[\s,.]*\d*)/i;
     
     for (const line of lines) {
         const match = line.match(itemPattern);
@@ -135,7 +119,6 @@ function parseReceiptText(text) {
             const quantity = parseFloat(match[3].replace(',', '.'));
             const total = parseFloat(match[4].replace(/\s/g, '').replace(',', '.'));
             
-            // Очищаем название
             name = name.replace(/^\d+\s+/, '');
             name = name.replace(/^[А-ЯЁ]{2,4}\.?/, '');
             name = name.trim();
@@ -148,14 +131,11 @@ function parseReceiptText(text) {
     
     result.items = items;
     
-    // Если товаров нет, но сумма есть
     if (result.items.length === 0 && result.total > 0) {
         result.items = [{ name: 'Покупка', quantity: 1, price: result.total, total: result.total }];
     }
     
-    console.log(`📦 Найдено товаров: ${result.items.length}`);
-    console.log(`💰 Сумма: ${result.total}`);
-    console.log(`🏪 Магазин: ${result.store || 'не найден'}`);
+    console.log(`📦 Товаров: ${result.items.length}, 💰 Сумма: ${result.total}, 🏪 Магазин: ${result.store || 'не найден'}`);
     
     return result;
 }
@@ -180,13 +160,13 @@ async function recognizeReceipt(imageFile) {
             showToast(`✅ Распознано ${parsed.items.length} товаров на сумму ${formatMoney(parsed.total)}`, 'success');
             return parsed;
         } else {
-            showToast('⚠️ Товары не найдены, но текст распознан', 'warning');
+            showToast('⚠️ Текст распознан, но товары не найдены', 'warning');
             return parsed;
         }
         
     } catch (error) {
         console.error('Ошибка:', error);
-        showToast(`❌ Ошибка: ${error.message || 'неизвестная ошибка'}`, 'error');
+        showToast(`❌ Ошибка: ${error.message}`, 'error');
         return null;
     }
 }
